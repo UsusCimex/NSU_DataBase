@@ -44,34 +44,34 @@ UPDATE groups
 SET leader_id = (SELECT id FROM students WHERE first_name = 'Jane' AND last_name = 'Doe')
 WHERE id = 23202;
 
-INSERT INTO teachers (first_name, last_name, specialization_id)
+INSERT INTO teachers (first_name, last_name, specialization_title)
 VALUES
-    ('David', 'Johnson', 1),
-    ('Christopher', 'Miller', 2),
-    ('Victoria', 'Thompson', 3),
-    ('Samuel', 'Wilson', 1),
-    ('Natalie', 'Parker', 2),
-    ('Andrew', 'Harris', 3),
-    ('Sophie', 'Martinez', 1),
-    ('Benjamin', 'Thomas', 2),
-    ('Amelia', 'Garcia', 3),
-    ('Ethan', 'Rodriguez', 1),
-    ('Alexander', 'Hernandez', 2),
-    ('Grace', 'Lopez', 3),
-    ('Henry', 'Moore', 1),
-    ('Chloe', 'Clark', 2),
-    ('Daniel', 'Lewis', 3),
-    ('Olivia', 'Walker', 1),
-    ('Liam', 'Hall', 2),
-    ('Ella', 'White', 3),
-    ('Lucas', 'Davis', 1),
-    ('Sophia', 'Anderson', 2);
+    ('David', 'Johnson', 'Mathematics'),
+    ('Christopher', 'Miller', 'Physics'),
+    ('Victoria', 'Thompson', 'Chemistry'),
+    ('Samuel', 'Wilson', 'Mathematics'),
+    ('Natalie', 'Parker', 'Physics'),
+    ('Andrew', 'Harris', 'Chemistry'),
+    ('Sophie', 'Martinez', 'Mathematics'),
+    ('Benjamin', 'Thomas', 'Physics'),
+    ('Amelia', 'Garcia', 'Chemistry'),
+    ('Ethan', 'Rodriguez', 'Mathematics'),
+    ('Alexander', 'Hernandez', 'Physics'),
+    ('Grace', 'Lopez', 'Chemistry'),
+    ('Henry', 'Moore', 'Mathematics'),
+    ('Chloe', 'Clark', 'Physics'),
+    ('Daniel', 'Lewis', 'Chemistry'),
+    ('Olivia', 'Walker', 'Mathematics'),
+    ('Liam', 'Hall', 'Physics'),
+    ('Ella', 'White', 'Chemistry'),
+    ('Lucas', 'Davis', 'Mathematics'),
+    ('Sophia', 'Anderson', 'Physics');
 
-INSERT INTO subjects (title, specialization_id)
+INSERT INTO subjects (title, specialization_title)
 VALUES
-    ('Algebra', 1),
-    ('Physics 101', 2),
-    ('Chemistry Basics', 3);
+    ('Algebra', 'Mathematics'),
+    ('Electronic', 'Physics'),
+    ('Chemistry Basics', 'Chemistry');
 
 INSERT INTO shedule (date_s, number_pair, number_office, teacher_id, group_id, subject_id, activity_type)
 VALUES

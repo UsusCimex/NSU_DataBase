@@ -11,29 +11,22 @@ WHERE schemaname = 'public';
 
 --- CREATE TABLES ---
 CREATE TABLE specializations(
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(20) NOT NULL
+    title VARCHAR(20) PRIMARY KEY
 );
 
 CREATE TABLE teachers(
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(20) NOT NULL,
     last_name VARCHAR(20) NOT NULL,
-    specialization_id INT NOT NULL,
-    CONSTRAINT fk_specialization
-        FOREIGN KEY (specialization_id)
-        REFERENCES specializations(id)
-        ON DELETE CASCADE
+    specialization_title VARCHAR(20) NOT NULL,
+    FOREIGN KEY (specialization_id) REFERENCES specializations(id) ON DELETE CASCADE
 );
 
 CREATE TABLE subjects(
     id SERIAL PRIMARY KEY,
     title VARCHAR(20) NOT NULL,
-    specialization_id INT NOT NULL,
-    CONSTRAINT fk_specialization2
-        FOREIGN KEY (specialization_id)
-        REFERENCES specializations(id)
-        ON DELETE CASCADE
+    specialization_title VARCHAR(20) NOT NULL,
+    FOREIGN KEY (specialization_id) REFERENCES specializations(id) ON DELETE CASCADE
 );
 
 CREATE TABLE groups(
