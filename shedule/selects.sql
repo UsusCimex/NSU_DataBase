@@ -67,7 +67,7 @@ GROUP BY teachers.id
 ORDER BY "Count" DESC;
 
 --- i. Выбрать преподавателей, у которого студентов-отличников больше 10.
---- ChangedTask: Выбрать преподавателей, у которых студентов с средним баллом 4.5 и выше больше 3
+--- ChangedTask: Выбрать преподавателей, у которых студентов с средним баллом 4.5 и выше больше 5
 SELECT teachers.first_name,
        teachers.last_name
 FROM students
@@ -81,4 +81,4 @@ WHERE students.id IN (
      HAVING AVG(marks.mark) >= 4.5
 )
 GROUP BY teachers.id
-HAVING COUNT(DISTINCT students.id) > 3;
+HAVING COUNT(DISTINCT students.id) > 5;
