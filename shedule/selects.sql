@@ -39,6 +39,7 @@ GROUP BY students.group_id;
 --- f. Вывести N лучших студентов по ср. баллу (N – параметр запроса).
 SELECT first_name,
        last_name,
+       group_id,
        ROUND(AVG(marks.mark),2) AS "Average_mark"
 FROM students 
      RIGHT JOIN marks ON marks.student_id = students.id 
@@ -58,7 +59,7 @@ LIMIT 1;
 --- h. Посчитать количество студентов у каждого преподавателя.
 SELECT teachers.first_name,
        teachers.last_name,
-       COUNT(students.id) AS "Count"
+       COUNT(DISTINCT students.id) AS "Count"
 FROM teachers
      RIGHT JOIN shedule ON shedule.teacher_id = teachers.id
      LEFT JOIN students ON students.group_id = shedule.group_id
@@ -66,6 +67,7 @@ GROUP BY teachers.id
 ORDER BY "Count" DESC;
 
 --- i. Выбрать преподавателей, у которого студентов-отличников больше 10.
+--- ChangedTask: Выбрать преподавателей, у которых студентов с средним баллом 4.5 и выше больше 3
 SELECT teachers.first_name,
        teachers.last_name
 FROM students
@@ -79,4 +81,4 @@ WHERE students.id IN (
      HAVING AVG(marks.mark) >= 4.5
 )
 GROUP BY teachers.id
-HAVING COUNT(students.id) >= 5;
+HAVING COUNT(DISTINCT students.id) > 3;
