@@ -1,8 +1,8 @@
 --- DROP DATABASE ---
--- DROP DATABASE shedule;
+-- DROP DATABASE schedule;
 
 --- CREATE DATABASE ---
--- CREATE DATABASE shedule;
+-- CREATE DATABASE schedule;
 
 --- DROP TABLES ---
 SELECT 'DROP TABLE "' || tablename || '" CASCADE;' 
@@ -19,14 +19,14 @@ CREATE TABLE teachers(
     first_name VARCHAR(20) NOT NULL,
     last_name VARCHAR(20) NOT NULL,
     specialization_title VARCHAR(20) NOT NULL,
-    FOREIGN KEY (specialization_id) REFERENCES specializations(id) ON DELETE CASCADE
+    FOREIGN KEY (specialization_title) REFERENCES specializations(title) ON DELETE CASCADE
 );
 
 CREATE TABLE subjects(
     id SERIAL PRIMARY KEY,
     title VARCHAR(20) NOT NULL,
     specialization_title VARCHAR(20) NOT NULL,
-    FOREIGN KEY (specialization_id) REFERENCES specializations(id) ON DELETE CASCADE
+    FOREIGN KEY (specialization_title) REFERENCES specializations(title) ON DELETE CASCADE
 );
 
 CREATE TABLE groups(
@@ -56,7 +56,7 @@ ADD CONSTRAINT fk_leader
 
 CREATE TYPE activity_types AS ENUM('Lecture', 'Lab', 'Discussion');
 
-CREATE TABLE shedule(
+CREATE TABLE schedule(
     id SERIAL PRIMARY KEY,
     date_s DATE NOT NULL,
     number_pair INT NOT NULL CHECK (number_pair >= 1 AND number_pair <= 6),
@@ -73,8 +73,8 @@ CREATE TABLE shedule(
 CREATE TABLE marks(
     id SERIAL PRIMARY KEY,
     mark INT NOT NULL CHECK (mark >= 2 AND mark <= 5),
-    shedule_id INT NOT NULL,
+    schedule_id INT NOT NULL,
     student_id INT NOT NULL,
-    FOREIGN KEY (shedule_id) REFERENCES shedule(id) ON DELETE CASCADE,
+    FOREIGN KEY (schedule_id) REFERENCES schedule(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
 );

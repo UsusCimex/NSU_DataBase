@@ -12,6 +12,15 @@ WHERE last_name IN (
     GROUP BY last_name
     HAVING COUNT(id) > 1
 );
+--- OR ---
+SELECT last_name
+FROM students
+GROUP BY last_name
+HAVING COUNT(*) > 1;
+--- OR ---
+SELECT s1.first_name, s1.last_name, s1.group_id
+FROM students s1
+     JOIN students s2 ON s1.last_name = s2.last_name AND s1.id != s2.id;
 
 --- c. Список всех студентов у преподавателя.
 SELECT teachers.first_name AS "Teacher first_name", 
@@ -20,8 +29,8 @@ SELECT teachers.first_name AS "Teacher first_name",
        students.last_name, 
        students.group_id
 FROM students
-     RIGHT JOIN shedule ON shedule.group_id = students.group_id
-     LEFT JOIN teachers ON teachers.id = shedule.teacher_id
+     LEFT JOIN schedule ON schedule.group_id = students.group_id
+     LEFT JOIN teachers ON teachers.id = schedule.teacher_id
 LIMIT 10;
 
 --- d. Найти группы, в которых нет старосты.
@@ -33,7 +42,7 @@ WHERE leader_id IS NULL;
 SELECT students.group_id,
        ROUND(AVG(marks.mark),2) AS "Average_mark"
 FROM students
-     RIGHT JOIN marks ON marks.student_id = students.id 
+     LEFT JOIN marks ON marks.student_id = students.id 
 GROUP BY students.group_id;
 
 --- f. Вывести N лучших студентов по ср. баллу (N – параметр запроса).
@@ -42,7 +51,7 @@ SELECT first_name,
        group_id,
        ROUND(AVG(marks.mark),2) AS "Average_mark"
 FROM students 
-     RIGHT JOIN marks ON marks.student_id = students.id 
+     LEFT JOIN marks ON marks.student_id = students.id 
 GROUP BY students.id
 ORDER BY "Average_mark" DESC
 LIMIT 15;
@@ -51,7 +60,7 @@ LIMIT 15;
 SELECT students.group_id,
        ROUND(AVG(marks.mark), 2) AS "Average_mark"
 FROM students
-     RIGHT JOIN marks ON marks.student_id = students.id 
+     LEFT JOIN marks ON marks.student_id = students.id 
 GROUP BY students.group_id
 ORDER BY "Average_mark" DESC
 LIMIT 1;
@@ -61,8 +70,8 @@ SELECT teachers.first_name,
        teachers.last_name,
        COUNT(DISTINCT students.id) AS "Count"
 FROM teachers
-     RIGHT JOIN shedule ON shedule.teacher_id = teachers.id
-     LEFT JOIN students ON students.group_id = shedule.group_id
+     LEFT JOIN schedule ON schedule.teacher_id = teachers.id
+     LEFT JOIN students ON students.group_id = schedule.group_id
 GROUP BY teachers.id
 ORDER BY "Count" DESC;
 
@@ -71,12 +80,12 @@ ORDER BY "Count" DESC;
 SELECT teachers.first_name,
        teachers.last_name
 FROM students
-     LEFT JOIN shedule ON shedule.group_id = students.group_id
-     LEFT JOIN teachers ON teachers.id = shedule.teacher_id
+     LEFT JOIN schedule ON schedule.group_id = students.group_id
+     LEFT JOIN teachers ON teachers.id = schedule.teacher_id
 WHERE students.id IN (
      SELECT s.id
      FROM students s
-          RIGHT JOIN marks ON marks.student_id = s.id
+          INNER JOIN marks ON marks.student_id = s.id
      GROUP BY s.id
      HAVING AVG(marks.mark) >= 4.5
 )

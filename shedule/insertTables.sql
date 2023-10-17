@@ -73,7 +73,7 @@ VALUES
     ('Electronic', 'Physics'),
     ('Chemistry Basics', 'Chemistry');
 
-INSERT INTO shedule (date_s, number_pair, number_office, teacher_id, group_id, subject_id, activity_type)
+INSERT INTO schedule (date_s, number_pair, number_office, teacher_id, group_id, subject_id, activity_type)
 VALUES
     ('2023-10-02', 1, 101, 1, 23201, 1, 'Lecture'),
     ('2023-10-02', 2, 102, 2, 23202, 2, 'Lab'),
@@ -96,7 +96,7 @@ VALUES
     ('2023-10-14', 1, 101, 4, 23201, 1, 'Lecture'),
     ('2023-10-14', 2, 102, 4, 23202, 2, 'Lab');
 
-INSERT INTO marks (mark, shedule_id, student_id)
+INSERT INTO marks (mark, schedule_id, student_id)
 VALUES
     (5, 1, 1),
     (4, 2, 2),
