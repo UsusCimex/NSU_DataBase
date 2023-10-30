@@ -20,10 +20,10 @@ CREATE TABLE category (
 
 CREATE TABLE components (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(20) NOT NULL,
+    name VARCHAR(50) NOT NULL,
     category_id INT NOT NULL,
     price INT NOT NULL,
-    guarantee_period DECIMAL(2,2),
+    guarantee_period INT,
     FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE CASCADE
 );
 
@@ -39,10 +39,11 @@ CREATE TABLE computer (
 );
 
 CREATE TABLE computer_components (
-    computer_id INT PRIMARY KEY,
-    component_id INT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
+    computer_serial INT,
+    component_id INT,
     date_sell_component DATE,
     price_sell_computer INT,
-    FOREIGN KEY (computer_id) REFERENCES computer(id) ON DELETE CASCADE,
-    FOREIGN KEY (component_id) REFERENCES component(id) ON DELETE CASCADE
+    FOREIGN KEY (computer_serial) REFERENCES computer(serial_number) ON DELETE CASCADE,
+    FOREIGN KEY (component_id) REFERENCES components(id) ON DELETE CASCADE
 );
