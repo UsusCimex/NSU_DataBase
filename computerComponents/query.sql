@@ -30,7 +30,7 @@ WHERE (category_id, price) IN (
     GROUP BY category_id
 )
 ORDER BY components.name;
-
+--- OR ---
 SELECT subQuery.name AS component, 
        category.name AS category, 
        min_price
@@ -64,7 +64,7 @@ WHERE components.id IN (
         OFFSET 2 LIMIT 1
     )
 );
-
+--- OR ---
 SELECT components.name AS component_name, 
        category.name AS category_name, 
        sell_count
