@@ -28,7 +28,21 @@ WHERE (category_id, price) IN (
            MIN(price)
     FROM components
     GROUP BY category_id
-);
+)
+ORDER BY components.name;
+
+SELECT DISTINCT components.name AS component, 
+       category.name AS category, 
+       components.price
+FROM (
+       SELECT category_id,
+              MIN(price) OVER (PARTITION BY category_id) AS min_price
+       FROM components
+) subQuery
+  RIGHT JOIN components ON components.category_id = subQuery.category_id
+  LEFT JOIN category ON components.category_id = category.id
+WHERE components.price = subQuery.min_price
+ORDER BY components.name;
 
 --- 4. Вывести комплектующие, которые находятся на первых 3 местах по уровню востребованности (наиболее часто используемые во всех собранных компьютерах). 
 --- Примечание: если уровень востребованности у двух комплектующих одинаковый, то обе находят-ся на одном месте.
