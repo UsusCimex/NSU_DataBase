@@ -20,7 +20,7 @@ HAVING COUNT(*) > 1;
 --- OR ---
 SELECT s1.first_name, s1.last_name, s1.group_id
 FROM students s1
-     JOIN students s2 ON s1.last_name = s2.last_name AND s1.id != s2.id;
+     JOIN students s2 ON s1.last_name = s2.last_name AND s1.id < s2.id;
 
 --- c. Список всех студентов у преподавателя.
 SELECT teachers.first_name AS "Teacher first_name", 

@@ -8,12 +8,12 @@ ORDER BY serial_number;
 --- 2. Найти для заданного комплектующего замену.
 
 SELECT name, price, guarantee_period
-FROM components
-WHERE category_id = ( 
-        SELECT id 
+FROM components JOIN ( 
+        SELECT id,
+               category_id 
         FROM components 
         WHERE name = 'AMD Ryzen 5 3600'
-    ) AND name != 'AMD Ryzen 5 3600'
+    ) subQuery ON components.category_id = subQuery.category_id AND components.id != subQuery.id 
 ORDER BY price;
 
 --- 3. Найти самое дешевое комплектующее для каждой категории.
@@ -33,17 +33,17 @@ ORDER BY components.name;
 --- OR ---
 SELECT subQuery.name AS component, 
        category.name AS category, 
-       min_price
+       subQuery.price
 FROM (
-       SELECT name,
-              category_id,
-              price,
-              MIN(price) OVER (PARTITION BY category_id) AS min_price
-       FROM components
+    SELECT name,
+           price,
+           category_id,
+           ROW_NUMBER() OVER (PARTITION BY category_id ORDER BY price) AS rn
+    FROM components
 ) subQuery
   LEFT JOIN category ON category.id = subQuery.category_id
-WHERE price = min_price
-ORDER BY component;
+WHERE subQuery.rn = 1
+ORDER BY subQuery.name;
 
 --- 4. Вывести комплектующие, которые находятся на первых 3 местах по уровню востребованности (наиболее часто используемые во всех собранных компьютерах). 
 --- Примечание: если уровень востребованности у двух комплектующих одинаковый, то обе находят-ся на одном месте.
