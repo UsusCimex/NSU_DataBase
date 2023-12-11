@@ -21,37 +21,37 @@ CREATE TABLE routes ( -- Маршрут
     departure_station INTEGER REFERENCES stations(station_id) NOT NULL
 );
 
-CREATE TABLE trains ( -- Поезд
-    train_id SERIAL PRIMARY KEY,
-    category VARCHAR(255)
-);
-
-CREATE TABLE train_compositions ( -- Состав поезда
-    composition_id SERIAL PRIMARY KEY,
-    train_id INTEGER REFERENCES trains(train_id),
+CREATE TABLE tickets ( -- Информация о билетах
+    tickets_id SERIAL PRIMARY KEY,
     general_tickets INTEGER,
     platzkart_tickets INTEGER,
     coupe_tickets INTEGER,
     sv_tickets INTEGER
 );
 
-CREATE TABLE schedules ( -- Расписание
-    schedule_id SERIAL PRIMARY KEY,
-    route_id INTEGER REFERENCES routes(route_id) NOT NULL,
-    train_id INTEGER REFERENCES trains(train_id) NOT NULL,
-    departure_date_time TIMESTAMP
+CREATE TABLE trains ( -- Поезда
+    train_id SERIAL PRIMARY KEY,
+    category VARCHAR(255),
+    total_tickets INTEGER REFERENCES tickets(tickets_id)
 );
 
-CREATE TABLE intermediate_schedules ( -- Время прибытия на станции по расписанию
+CREATE TABLE intermediate_routes ( -- Промежуточные станции
     arrival_id SERIAL PRIMARY KEY,
-    schedule_id INTEGER REFERENCES schedules(schedule_id) NOT NULL,
+    route_id INTEGER REFERENCES routes(route_id) NOT NULL,
     station_id INTEGER REFERENCES stations(station_id) NOT NULL,
-    order_number INTEGER,  -- номер станции в маршруте
+    order_number INTEGER
+);
+
+CREATE TABLE schedules ( -- Расписание
+    schedule_id SERIAL PRIMARY KEY,
+    train_id INTEGER REFERENCES trains(train_id) NOT NULL,
+    arrival_id INTEGER REFERENCES intermediate_routes(arrival_id) NOT NULL,
+    occupied_tickets INTEGER REFERENCES tickets(tickets_id), 
     arrival_date_time TIMESTAMP,
     parking_time INTEGER
 );
 
-CREATE TABLE passengers ( -- Пассажир
+CREATE TABLE passengers ( -- Пассажиры
     passenger_id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
     passport_details VARCHAR(255) NOT NULL
