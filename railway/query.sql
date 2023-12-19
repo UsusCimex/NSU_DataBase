@@ -27,6 +27,7 @@ WHERE t.train_id = 5
 
 -- Отчёты о маршрутах и поездах между указанными городами
 SELECT r.route_id,
+       sch.train_id,
        st.station_name,
        sch.arrival_date_time
 FROM schedules sch
@@ -35,22 +36,21 @@ FROM schedules sch
     JOIN stations st ON ir.station_id = st.station_id
 WHERE EXISTS(SELECT ir2.order_number FROM intermediate_routes ir2 JOIN stations st2 ON ir2.station_id = st2.station_id
             WHERE r.route_id = ir2.route_id AND
-            st2.station_name = 'Penaland') AND
+            st2.station_name = 'Amandaton') AND
       EXISTS(SELECT ir2.order_number FROM intermediate_routes ir2 JOIN stations st2 ON ir2.station_id = st2.station_id
             WHERE r.route_id = ir2.route_id AND
-            st2.station_name = 'Phillipsberg')
+            st2.station_name = 'Kellybury')
 ORDER BY r.route_id;
 
 -- Все станции-пересадки по маршруту
-SELECT sch.schedule_id,
-    st.station_name,
+SELECT st.station_name,
     ir.order_number,
     sch.arrival_date_time
 FROM schedules sch
     JOIN intermediate_routes ir ON sch.arrival_id = ir.arrival_id
     JOIN routes r ON ir.route_id = r.route_id
     JOIN stations st ON ir.station_id = st.station_id
-WHERE r.route_id = 4
+WHERE r.route_id = 13
 ORDER BY sch.schedule_id, ir.order_number;
 
 -- Количество билетов на указанный поезд
@@ -81,7 +81,8 @@ SELECT t.train_id,
     st1.station_name AS "Departure",
     st2.station_name AS "Destionation",
     st.station_name AS "Station",
-    sch.arrival_date_time AS "Arrival Time"
+    sch.arrival_date_time AS "Arrival Time",
+    sch.arrival_date_time + (sch.parking_time || 'minutes')::interval AS "Departure Time"
 FROM trains t
     JOIN schedules sch ON t.train_id = sch.train_id
     JOIN intermediate_routes ir ON sch.arrival_id = ir.arrival_id
@@ -89,8 +90,8 @@ FROM trains t
     JOIN routes r ON ir.route_id = r.route_id
     JOIN stations st1 ON r.departure_station = st1.station_id
     JOIN stations st2 ON r.destination_station = st2.station_id
-WHERE st.station_name = 'Barnettbury'
-    AND sch.arrival_date_time BETWEEN '2023-04-25' AND '2023-04-30'
+WHERE st.station_name = 'Dustintown'
+    AND sch.arrival_date_time + (sch.parking_time || 'minutes')::interval BETWEEN current_date AND current_date + interval '7 days'
 ORDER BY sch.arrival_date_time;
 
 -- Иерархия сотрудников РЖД

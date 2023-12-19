@@ -4,6 +4,16 @@ import getpass
 import random
 from datetime import datetime, timedelta
 
+class PassengerTrip:
+    def __init__(self, passenger_id, ticket_type, departure_schedule_id):
+        self.passenger_id = passenger_id
+        self.ticket_type = ticket_type
+        self.departure_schedule_id = departure_schedule_id
+        self.destination_schedule_id = None
+
+    def set_destination(self, destination_schedule_id):
+        self.destination_schedule_id = destination_schedule_id
+
 faker = Faker()
 
 # Database connection credentials
@@ -53,8 +63,19 @@ for i in range(1000):
 conn.commit()
 print("Trains generation complete.")
 
+# Passengers data generation
+for _ in range(75000):
+    full_name = faker.name()
+    passport_details = faker.ssn()
+    cur.execute(
+        "INSERT INTO passengers (full_name, passport_details) VALUES (%s, %s)",
+        (full_name, passport_details)
+    )
+conn.commit()
+print("Passengers generation complete.")
+
 # Routes data generation
-for i in range(5000):
+for i in range(10000):
     departure_station, destination_station = random.sample(range(1, 111+1), 2)
     cur.execute(
         "INSERT INTO routes (departure_station, destination_station) VALUES (%s, %s) RETURNING route_id",
@@ -68,7 +89,7 @@ for i in range(5000):
     generated_stations.add(destination_station)
 
     train_id = random.randint(1, 1000)
-    arrival_date_time = faker.date_time_between(start_date='-2y', end_date='+1m')
+    arrival_date_time = faker.date_time_between(start_date='-2y', end_date='+1y')
 
     # Occupied tickets generation
     cur.execute(
@@ -87,6 +108,42 @@ for i in range(5000):
     occupied_platzkart = random.randint(0, total_tickets_info[1])
     occupied_coupe = random.randint(0, total_tickets_info[2])
     occupied_sv = random.randint(0, total_tickets_info[3])
+
+    passenger_trips = []
+    unique_passenger = {}
+
+    for og in range(occupied_general) :
+        passenger_id = random.randint(1, 75000+1)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000+1)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'general', schedule_id)
+        passenger_trips.append(trip)
+    for op in range(occupied_platzkart) :
+        passenger_id = random.randint(1, 75000+1)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000+1)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
+        passenger_trips.append(trip)
+    for oc in range(occupied_coupe) :
+        passenger_id = random.randint(1, 75000+1)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000+1)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
+        passenger_trips.append(trip)
+    for os in range(occupied_sv) :
+        passenger_id = random.randint(1, 75000+1)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000+1)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'sv', schedule_id)
+        passenger_trips.append(trip)
 
     cur.execute(
         "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
@@ -121,10 +178,77 @@ for i in range(5000):
             (route_id, station_id, order)
         )
         arrival_id = cur.fetchone()[0]
+        old_occupied_general = occupied_general
+        old_occupied_platzkart = occupied_platzkart
+        old_occupied_coupe = occupied_coupe
+        old_occupied_sv = occupied_sv
+
         occupied_general = random.randint(0, total_tickets_info[0])
         occupied_platzkart = random.randint(0, total_tickets_info[1])
         occupied_coupe = random.randint(0, total_tickets_info[2])
         occupied_sv = random.randint(0, total_tickets_info[3])
+
+        diff_general = occupied_general - old_occupied_general
+        diff_platzkart = occupied_platzkart - old_occupied_platzkart
+        diff_coupe = occupied_coupe - old_occupied_coupe
+        diff_sv = occupied_sv - old_occupied_sv
+
+        for og in range(abs(diff_general)) :
+            if (diff_general > 0):
+                passenger_id = random.randint(1, 75000+1)
+                while (unique_passenger.__contains__(passenger_id)) :
+                    passenger_id = random.randint(1, 75000+1)
+                unique_passenger.add(passenger_id)
+                
+                trip = PassengerTrip(passenger_id, 'general', schedule_id)
+                passenger_trips.append(trip)
+            else :
+                for trip in passenger_trips:
+                    if trip.destination_schedule_id is None and trip.ticket_type == "general":
+                        trip.set_destination(schedule_id)
+                        break
+        for op in range(abs(diff_platzkart)) :
+            if (diff_platzkart > 0):
+                passenger_id = random.randint(1, 75000+1)
+                while (unique_passenger.__contains__(passenger_id)) :
+                    passenger_id = random.randint(1, 75000+1)
+                unique_passenger.add(passenger_id)
+                
+                trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
+                passenger_trips.append(trip)
+            else :
+                for trip in passenger_trips:
+                    if trip.destination_schedule_id is None and trip.ticket_type == "platzkart":
+                        trip.set_destination(schedule_id)
+                        break
+        for og in range(abs(diff_coupe)) :
+            if (diff_coupe > 0):
+                passenger_id = random.randint(1, 75000+1)
+                while (unique_passenger.__contains__(passenger_id)) :
+                    passenger_id = random.randint(1, 75000+1)
+                unique_passenger.add(passenger_id)
+                
+                trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
+                passenger_trips.append(trip)
+            else :
+                for trip in passenger_trips:
+                    if trip.destination_schedule_id is None and trip.ticket_type == "coupe":
+                        trip.set_destination(schedule_id)
+                        break
+        for og in range(abs(diff_sv)) :
+            if (diff_sv > 0):
+                passenger_id = random.randint(1, 75000+1)
+                while (unique_passenger.__contains__(passenger_id)) :
+                    passenger_id = random.randint(1, 75000+1)
+                unique_passenger.add(passenger_id)
+                
+                trip = PassengerTrip(passenger_id, 'sv', schedule_id)
+                passenger_trips.append(trip)
+            else :
+                for trip in passenger_trips:
+                    if trip.destination_schedule_id is None and trip.ticket_type == "sv":
+                        trip.set_destination(schedule_id)
+                        break
 
         cur.execute(
             "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
@@ -144,10 +268,78 @@ for i in range(5000):
     )
     arrival_id = cur.fetchone()[0]
     parking_time = random.randint(5, 60)
+
+    old_occupied_general = occupied_general
+    old_occupied_platzkart = occupied_platzkart
+    old_occupied_coupe = occupied_coupe
+    old_occupied_sv = occupied_sv
+
     occupied_general = random.randint(0, total_tickets_info[0])
     occupied_platzkart = random.randint(0, total_tickets_info[1])
     occupied_coupe = random.randint(0, total_tickets_info[2])
     occupied_sv = random.randint(0, total_tickets_info[3])
+
+    diff_general = occupied_general - old_occupied_general
+    diff_platzkart = occupied_platzkart - old_occupied_platzkart
+    diff_coupe = occupied_coupe - old_occupied_coupe
+    diff_sv = occupied_sv - old_occupied_sv
+
+    for og in range(abs(diff_general)) :
+            if (diff_general > 0):
+                passenger_id = random.randint(1, 75000+1)
+                while (unique_passenger.__contains__(passenger_id)) :
+                    passenger_id = random.randint(1, 75000+1)
+                unique_passenger.add(passenger_id)
+                
+                trip = PassengerTrip(passenger_id, 'general', schedule_id)
+                passenger_trips.append(trip)
+            else :
+                for trip in passenger_trips:
+                    if trip.destination_schedule_id is None and trip.ticket_type == "general":
+                        trip.set_destination(schedule_id)
+                        break
+    for op in range(abs(diff_platzkart)) :
+        if (diff_platzkart > 0):
+            passenger_id = random.randint(1, 75000+1)
+            while (unique_passenger.__contains__(passenger_id)) :
+                passenger_id = random.randint(1, 75000+1)
+            unique_passenger.add(passenger_id)
+            
+            trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
+            passenger_trips.append(trip)
+        else :
+            for trip in passenger_trips:
+                if trip.destination_schedule_id is None and trip.ticket_type == "platzkart":
+                    trip.set_destination(schedule_id)
+                    break
+    for og in range(abs(diff_coupe)) :
+        if (diff_coupe > 0):
+            passenger_id = random.randint(1, 75000+1)
+            while (unique_passenger.__contains__(passenger_id)) :
+                passenger_id = random.randint(1, 75000+1)
+            unique_passenger.add(passenger_id)
+            
+            trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
+            passenger_trips.append(trip)
+        else :
+            for trip in passenger_trips:
+                if trip.destination_schedule_id is None and trip.ticket_type == "coupe":
+                    trip.set_destination(schedule_id)
+                    break
+    for og in range(abs(diff_sv)) :
+        if (diff_sv > 0):
+            passenger_id = random.randint(1, 75000+1)
+            while (unique_passenger.__contains__(passenger_id)) :
+                passenger_id = random.randint(1, 75000+1)
+            unique_passenger.add(passenger_id)
+            
+            trip = PassengerTrip(passenger_id, 'sv', schedule_id)
+            passenger_trips.append(trip)
+        else :
+            for trip in passenger_trips:
+                if trip.destination_schedule_id is None and trip.ticket_type == "sv":
+                    trip.set_destination(schedule_id)
+                    break
 
     cur.execute(
         "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
@@ -162,30 +354,15 @@ for i in range(5000):
         (train_id, arrival_id, occupied_tickets_id, next_arrival_time, parking_time)
     )
 
+    for trip in passenger_trips:
+        if trip.destination_schedule_id is not None:  # Убедимся, что у пассажира есть конечная станция
+            cur.execute(
+                "INSERT INTO passenger_trips (passenger_id, ticket_type, departure_station_schedule, destination_station_schedule) VALUES (%s, %s, %s, %s)",
+                (trip.passenger_id, trip.ticket_type, trip.departure_schedule_id, trip.destination_schedule_id)
+            )
+
 conn.commit()
 print("Routes and schedules generation complete.")
-
-# Passengers data generation
-for _ in range(75000):
-    full_name = faker.name()
-    passport_details = faker.ssn()
-    cur.execute(
-        "INSERT INTO passengers (full_name, passport_details) VALUES (%s, %s)",
-        (full_name, passport_details)
-    )
-conn.commit()
-print("Passengers generation complete.")
-
-# Passenger Trips data generation
-for _ in range(20000):
-    passenger_id = random.randint(1, 75000)
-    schedule_id = random.randint(1, 20000)
-    cur.execute(
-        "INSERT INTO passenger_trips (passenger_id, schedule_id) VALUES (%s, %s)",
-        (passenger_id, schedule_id)
-    )
-conn.commit()
-print("Passenger trips generation complete.")
 
 positions_hierarchy = {
     1: ['CEO'],

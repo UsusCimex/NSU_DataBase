@@ -60,7 +60,9 @@ CREATE TABLE passengers ( -- Пассажиры
 CREATE TABLE passenger_trips ( -- Поездка пассажира
     trip_id SERIAL PRIMARY KEY,
     passenger_id INTEGER REFERENCES passengers(passenger_id) NOT NULL,
-    schedule_id INTEGER REFERENCES schedules(schedule_id) NOT NULL
+    ticket_type VARCHAR(255) NOT NULL,
+    departure_station_schedule INTEGER REFERENCES schedules(schedule_id) NOT NULL,
+    destination_station_schedule INTEGER REFERENCES schedules(schedule_id) NOT NULL
 );
 
 CREATE TABLE rzd_employees ( -- Сотрудник РЖД
