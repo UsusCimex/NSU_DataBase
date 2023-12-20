@@ -31,7 +31,9 @@ conn.set_client_encoding('UTF8')
 cur = conn.cursor()
 
 # Stations data generation
-city_names = [faker.city() for _ in range(111)]
+city_names = set()
+while (len(city_names) != 111):
+    city_names.add(faker.city())
 for city in city_names:
     cur.execute(
         "INSERT INTO stations (station_name) VALUES (%s)",
@@ -43,10 +45,10 @@ print("Stations generation complete.")
 # Trains and Tickets data generation
 for i in range(1000):
     # Ticket generation
-    general_tickets = random.randint(50, 200)
-    platzkart_tickets = random.randint(50, 200)
-    coupe_tickets = random.randint(10, 50)
-    sv_tickets = random.randint(2, 10)
+    general_tickets = random.randint(10, 50)
+    platzkart_tickets = random.randint(10, 50)
+    coupe_tickets = random.randint(5, 10)
+    sv_tickets = random.randint(1, 5)
 
     cur.execute(
         "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
@@ -109,42 +111,6 @@ for i in range(10000):
     occupied_coupe = random.randint(0, total_tickets_info[2])
     occupied_sv = random.randint(0, total_tickets_info[3])
 
-    passenger_trips = []
-    unique_passenger = {}
-
-    for og in range(occupied_general) :
-        passenger_id = random.randint(1, 75000+1)
-        while (unique_passenger.__contains__(passenger_id)) :
-            passenger_id = random.randint(1, 75000+1)
-        unique_passenger.add(passenger_id)
-        
-        trip = PassengerTrip(passenger_id, 'general', schedule_id)
-        passenger_trips.append(trip)
-    for op in range(occupied_platzkart) :
-        passenger_id = random.randint(1, 75000+1)
-        while (unique_passenger.__contains__(passenger_id)) :
-            passenger_id = random.randint(1, 75000+1)
-        unique_passenger.add(passenger_id)
-        
-        trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
-        passenger_trips.append(trip)
-    for oc in range(occupied_coupe) :
-        passenger_id = random.randint(1, 75000+1)
-        while (unique_passenger.__contains__(passenger_id)) :
-            passenger_id = random.randint(1, 75000+1)
-        unique_passenger.add(passenger_id)
-        
-        trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
-        passenger_trips.append(trip)
-    for os in range(occupied_sv) :
-        passenger_id = random.randint(1, 75000+1)
-        while (unique_passenger.__contains__(passenger_id)) :
-            passenger_id = random.randint(1, 75000+1)
-        unique_passenger.add(passenger_id)
-        
-        trip = PassengerTrip(passenger_id, 'sv', schedule_id)
-        passenger_trips.append(trip)
-
     cur.execute(
         "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
         (occupied_general, occupied_platzkart, occupied_coupe, occupied_sv)
@@ -160,16 +126,55 @@ for i in range(10000):
     arrival_id = cur.fetchone()[0]
 
     cur.execute(
-        "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, parking_time) VALUES (%s, %s, %s, %s, %s)",
-        (train_id, arrival_id, occupied_tickets_id, arrival_date_time, 0)
+        "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s, %s) RETURNING schedule_id",
+        (train_id, arrival_id, occupied_tickets_id, arrival_date_time, 0, 0,)
     )
+
+    schedule_id = cur.fetchone()[0]
+
+    passenger_trips = []
+    unique_passenger = set()
+
+    for og in range(occupied_general) :
+        passenger_id = random.randint(1, 75000)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'general', schedule_id)
+        passenger_trips.append(trip)
+    for op in range(occupied_platzkart) :
+        passenger_id = random.randint(1, 75000)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
+        passenger_trips.append(trip)
+    for oc in range(occupied_coupe) :
+        passenger_id = random.randint(1, 75000)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
+        passenger_trips.append(trip)
+    for os in range(occupied_sv) :
+        passenger_id = random.randint(1, 75000)
+        while (unique_passenger.__contains__(passenger_id)) :
+            passenger_id = random.randint(1, 75000)
+        unique_passenger.add(passenger_id)
+        
+        trip = PassengerTrip(passenger_id, 'sv', schedule_id)
+        passenger_trips.append(trip)
 
     # Генерация промежуточных станций
     last_arrival_time = arrival_date_time
     for order in range(2, num_intermediate_stations):
         parking_time = random.randint(5, 60)  # in minutes
+        train_delay = random.randint(0, 5) # in minutes
         travel_time = timedelta(minutes=random.randint(10, 120))
-        next_arrival_time = last_arrival_time + travel_time + timedelta(minutes=parking_time)
+        next_arrival_time = last_arrival_time + travel_time + timedelta(minutes=parking_time) + timedelta(minutes=train_delay)
         last_arrival_time = next_arrival_time
         station_id = random.choice([s for s in range(1, 111+1) if s not in generated_stations])
         generated_stations.add(station_id)
@@ -193,11 +198,24 @@ for i in range(10000):
         diff_coupe = occupied_coupe - old_occupied_coupe
         diff_sv = occupied_sv - old_occupied_sv
 
+        cur.execute(
+            "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
+            (occupied_general, occupied_platzkart, occupied_coupe, occupied_sv)
+        )
+        occupied_tickets_id = cur.fetchone()[0]
+
+        cur.execute(
+            "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s, %s) RETURNING schedule_id",
+            (train_id, arrival_id, occupied_tickets_id, next_arrival_time, train_delay, parking_time)
+        )
+
+        schedule_id = cur.fetchone()[0]
+
         for og in range(abs(diff_general)) :
             if (diff_general > 0):
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
                 while (unique_passenger.__contains__(passenger_id)) :
-                    passenger_id = random.randint(1, 75000+1)
+                    passenger_id = random.randint(1, 75000)
                 unique_passenger.add(passenger_id)
                 
                 trip = PassengerTrip(passenger_id, 'general', schedule_id)
@@ -209,9 +227,9 @@ for i in range(10000):
                         break
         for op in range(abs(diff_platzkart)) :
             if (diff_platzkart > 0):
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
                 while (unique_passenger.__contains__(passenger_id)) :
-                    passenger_id = random.randint(1, 75000+1)
+                    passenger_id = random.randint(1, 75000)
                 unique_passenger.add(passenger_id)
                 
                 trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
@@ -223,9 +241,9 @@ for i in range(10000):
                         break
         for og in range(abs(diff_coupe)) :
             if (diff_coupe > 0):
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
                 while (unique_passenger.__contains__(passenger_id)) :
-                    passenger_id = random.randint(1, 75000+1)
+                    passenger_id = random.randint(1, 75000)
                 unique_passenger.add(passenger_id)
                 
                 trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
@@ -237,9 +255,9 @@ for i in range(10000):
                         break
         for og in range(abs(diff_sv)) :
             if (diff_sv > 0):
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
                 while (unique_passenger.__contains__(passenger_id)) :
-                    passenger_id = random.randint(1, 75000+1)
+                    passenger_id = random.randint(1, 75000)
                 unique_passenger.add(passenger_id)
                 
                 trip = PassengerTrip(passenger_id, 'sv', schedule_id)
@@ -250,24 +268,14 @@ for i in range(10000):
                         trip.set_destination(schedule_id)
                         break
 
-        cur.execute(
-            "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
-            (occupied_general, occupied_platzkart, occupied_coupe, occupied_sv)
-        )
-        occupied_tickets_id = cur.fetchone()[0]
-
-        cur.execute(
-            "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, parking_time) VALUES (%s, %s, %s, %s, %s)",
-            (train_id, arrival_id, occupied_tickets_id, next_arrival_time, parking_time)
-        )
-
     # Добавление конечной станции
     cur.execute(
         "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING arrival_id",
         (route_id, destination_station, num_intermediate_stations)
     )
     arrival_id = cur.fetchone()[0]
-    parking_time = random.randint(5, 60)
+    parking_time = random.randint(5, 60)  # in minutes
+    train_delay = random.randint(0, 5) # in minutes
 
     old_occupied_general = occupied_general
     old_occupied_platzkart = occupied_platzkart
@@ -286,9 +294,9 @@ for i in range(10000):
 
     for og in range(abs(diff_general)) :
             if (diff_general > 0):
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
                 while (unique_passenger.__contains__(passenger_id)) :
-                    passenger_id = random.randint(1, 75000+1)
+                    passenger_id = random.randint(1, 75000)
                 unique_passenger.add(passenger_id)
                 
                 trip = PassengerTrip(passenger_id, 'general', schedule_id)
@@ -300,9 +308,9 @@ for i in range(10000):
                         break
     for op in range(abs(diff_platzkart)) :
         if (diff_platzkart > 0):
-            passenger_id = random.randint(1, 75000+1)
+            passenger_id = random.randint(1, 75000)
             while (unique_passenger.__contains__(passenger_id)) :
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
             unique_passenger.add(passenger_id)
             
             trip = PassengerTrip(passenger_id, 'platzkart', schedule_id)
@@ -314,9 +322,9 @@ for i in range(10000):
                     break
     for og in range(abs(diff_coupe)) :
         if (diff_coupe > 0):
-            passenger_id = random.randint(1, 75000+1)
+            passenger_id = random.randint(1, 75000)
             while (unique_passenger.__contains__(passenger_id)) :
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
             unique_passenger.add(passenger_id)
             
             trip = PassengerTrip(passenger_id, 'coupe', schedule_id)
@@ -328,9 +336,9 @@ for i in range(10000):
                     break
     for og in range(abs(diff_sv)) :
         if (diff_sv > 0):
-            passenger_id = random.randint(1, 75000+1)
+            passenger_id = random.randint(1, 75000)
             while (unique_passenger.__contains__(passenger_id)) :
-                passenger_id = random.randint(1, 75000+1)
+                passenger_id = random.randint(1, 75000)
             unique_passenger.add(passenger_id)
             
             trip = PassengerTrip(passenger_id, 'sv', schedule_id)
@@ -350,16 +358,18 @@ for i in range(10000):
     travel_time = timedelta(minutes=random.randint(10, 120))
     next_arrival_time = last_arrival_time + travel_time + timedelta(minutes=parking_time)
     cur.execute(
-        "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, parking_time) VALUES (%s, %s, %s, %s, %s)",
-        (train_id, arrival_id, occupied_tickets_id, next_arrival_time, parking_time)
+        "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s, %s) RETURNING schedule_id",
+        (train_id, arrival_id, occupied_tickets_id, next_arrival_time, train_delay, parking_time)
     )
+    schedule_id = cur.fetchone()[0]
 
     for trip in passenger_trips:
-        if trip.destination_schedule_id is not None:  # Убедимся, что у пассажира есть конечная станция
-            cur.execute(
-                "INSERT INTO passenger_trips (passenger_id, ticket_type, departure_station_schedule, destination_station_schedule) VALUES (%s, %s, %s, %s)",
-                (trip.passenger_id, trip.ticket_type, trip.departure_schedule_id, trip.destination_schedule_id)
-            )
+        if trip.destination_schedule_id is None:
+            trip.set_destination(schedule_id)
+        cur.execute(
+            "INSERT INTO passenger_trips (passenger_id, ticket_type, departure_station_schedule, destination_station_schedule) VALUES (%s, %s, %s, %s)",
+            (trip.passenger_id, trip.ticket_type, trip.departure_schedule_id, trip.destination_schedule_id)
+        )
 
 conn.commit()
 print("Routes and schedules generation complete.")

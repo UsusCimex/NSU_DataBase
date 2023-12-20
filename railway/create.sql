@@ -48,6 +48,7 @@ CREATE TABLE schedules ( -- Расписание
     arrival_id INTEGER REFERENCES intermediate_routes(arrival_id) NOT NULL,
     occupied_tickets INTEGER REFERENCES tickets(tickets_id), 
     arrival_date_time TIMESTAMP,
+    train_delay INTEGER,
     parking_time INTEGER
 );
 

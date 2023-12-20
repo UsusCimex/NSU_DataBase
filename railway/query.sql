@@ -16,7 +16,7 @@ LIMIT 10;
 SELECT r.route_id,
     st.station_name,
     s.arrival_date_time,
-    s.parking_time
+    s.train_delay
 FROM schedules s
     JOIN intermediate_routes ir ON s.arrival_id = ir.arrival_id
     JOIN routes r ON ir.route_id = r.route_id
