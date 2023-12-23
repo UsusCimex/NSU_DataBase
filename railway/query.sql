@@ -42,6 +42,39 @@ WHERE EXISTS(SELECT ir2.order_number FROM intermediate_routes ir2 JOIN stations 
             st2.station_name = 'Kellybury')
 ORDER BY r.route_id;
 
+-- С учётом пересадок
+WITH RECURSIVE route_path AS (
+    SELECT 
+        r1.route_id, 
+        r1.departure_station, 
+        r1.destination_station, 
+        ARRAY[r1.route_id] AS route_history,
+        1 as hop_count
+    FROM 
+        routes r1
+    WHERE 
+        r1.departure_station = (SELECT station_id FROM stations WHERE station_name = 'A') -- Начальная станцию
+
+    UNION ALL
+
+    SELECT 
+        r2.route_id, 
+        rp.departure_station, 
+        r2.destination_station, 
+        route_history || r2.route_id, 
+        rp.hop_count + 1
+    FROM 
+        routes r2
+    JOIN 
+        route_path rp ON rp.destination_station = r2.departure_station
+    WHERE 
+        NOT (r2.route_id = ANY(route_history)) -- предотвращение циклов
+        AND hop_count < 5 -- ограничение количества пересадок
+)
+SELECT * FROM route_path
+WHERE destination_station = (SELECT station_id FROM stations WHERE station_name = 'B') -- Конечная станцию
+ORDER BY hop_count, route_id;
+
 -- Все станции-пересадки по маршруту
 SELECT st.station_name,
     ir.order_number,
@@ -54,6 +87,7 @@ WHERE r.route_id = 13
 ORDER BY sch.schedule_id, ir.order_number;
 
 -- Количество билетов на указанный поезд
+-- Максимальное количество
 SELECT tck.general_tickets AS "General",
     tck.platzkart_tickets AS "Platzkart",
     tck.coupe_tickets AS "Coupe",
@@ -62,6 +96,7 @@ FROM trains t
     JOIN tickets tck ON t.total_tickets = tck.tickets_id
 WHERE t.train_id = 4;
 
+-- Количество занятых билетов на каждой станции
 SELECT s.station_name,
     sch.arrival_date_time,
     tck.general_tickets AS "General",
