@@ -154,3 +154,30 @@ SELECT employee_id,
     depth
 FROM EmployeeHierarchy
 ORDER BY depth, manager_id, employee_id;
+
+WITH RECURSIVE EmployeeHierarchy AS (
+    SELECT 
+        e.employee_id,
+        e.full_name,
+        e.manager_id,
+        1 AS depth,
+        CAST(e.full_name AS TEXT) AS hierarchy
+    FROM rzd_employees e
+    WHERE e.manager_id IS NULL
+
+    UNION ALL
+
+    SELECT 
+        e.employee_id,
+        e.full_name,
+        e.manager_id,
+        eh.depth + 1 AS depth,
+        eh.hierarchy || ' -> ' || e.full_name AS hierarchy
+    FROM rzd_employees e
+    INNER JOIN EmployeeHierarchy eh ON e.manager_id = eh.employee_id
+)
+SELECT 
+    hierarchy
+FROM EmployeeHierarchy
+WHERE depth > 4
+ORDER BY depth, manager_id, employee_id;

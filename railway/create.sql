@@ -12,7 +12,8 @@ WHERE schemaname = 'public';
 --- CREATE TABLES ---
 CREATE TABLE stations ( -- Станция
     station_id SERIAL PRIMARY KEY,
-    station_name VARCHAR(255) UNIQUE NOT NULL
+    station_name VARCHAR(255) UNIQUE NOT NULL,
+    header_station INTEGER REFERENCES stations(station_id)
 );
 
 CREATE TABLE routes ( -- Маршрут
