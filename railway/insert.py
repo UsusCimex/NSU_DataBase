@@ -59,7 +59,7 @@ for i in range(1000):
     # Train generation
     category = random.choice(['Regular', 'Express', 'Luxury'])
     cur.execute(
-        "INSERT INTO trains (category, total_tickets) VALUES (%s, %s)",
+        "INSERT INTO trains (category, tickets_id) VALUES (%s, %s)",
         (category, tickets_id)
     )
 conn.commit()
@@ -80,8 +80,8 @@ print("Passengers generation complete.")
 for i in range(10000):
     departure_station, destination_station = random.sample(range(1, 111+1), 2)
     cur.execute(
-        "INSERT INTO routes (departure_station, destination_station) VALUES (%s, %s) RETURNING route_id",
-        (departure_station, destination_station)
+        "INSERT INTO routes (route_id) VALUES (%s) RETURNING route_id",
+        (i + 1, )
     )
     route_id = cur.fetchone()[0]
 
@@ -95,39 +95,33 @@ for i in range(10000):
 
     # Occupied tickets generation
     cur.execute(
-        "SELECT total_tickets FROM trains WHERE train_id = %s",
+        "SELECT tickets_id FROM trains WHERE train_id = %s",
         (train_id,)
     )
-    total_tickets_id = cur.fetchone()[0]
+    tickets_id_id = cur.fetchone()[0]
 
     cur.execute(
         "SELECT general_tickets, platzkart_tickets, coupe_tickets, sv_tickets FROM tickets WHERE tickets_id = %s",
-        (total_tickets_id,)
+        (tickets_id_id,)
     )
-    total_tickets_info = cur.fetchone()
+    tickets_id_info = cur.fetchone()
 
-    occupied_general = random.randint(0, total_tickets_info[0])
-    occupied_platzkart = random.randint(0, total_tickets_info[1])
-    occupied_coupe = random.randint(0, total_tickets_info[2])
-    occupied_sv = random.randint(0, total_tickets_info[3])
-
-    cur.execute(
-        "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
-        (occupied_general, occupied_platzkart, occupied_coupe, occupied_sv)
-    )
-    occupied_tickets_id = cur.fetchone()[0]
+    occupied_general = random.randint(0, tickets_id_info[0])
+    occupied_platzkart = random.randint(0, tickets_id_info[1])
+    occupied_coupe = random.randint(0, tickets_id_info[2])
+    occupied_sv = random.randint(0, tickets_id_info[3])
 
     # Добавление начальной станции
     cur.execute(
-        "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING arrival_id",
+        "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING intermediate_routes_id",
         (route_id, departure_station, 1)
     )
 
-    arrival_id = cur.fetchone()[0]
+    intermediate_routes_id = cur.fetchone()[0]
 
     cur.execute(
-        "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s, %s) RETURNING schedule_id",
-        (train_id, arrival_id, occupied_tickets_id, arrival_date_time, 0, 0,)
+        "INSERT INTO schedules (train_id, intermediate_routes_id, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s) RETURNING schedule_id",
+        (train_id, intermediate_routes_id, arrival_date_time, 0, 0,)
     )
 
     schedule_id = cur.fetchone()[0]
@@ -179,19 +173,19 @@ for i in range(10000):
         station_id = random.choice([s for s in range(1, 111+1) if s not in generated_stations])
         generated_stations.add(station_id)
         cur.execute(
-            "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING arrival_id",
+            "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING intermediate_routes_id",
             (route_id, station_id, order)
         )
-        arrival_id = cur.fetchone()[0]
+        intermediate_routes_id = cur.fetchone()[0]
         old_occupied_general = occupied_general
         old_occupied_platzkart = occupied_platzkart
         old_occupied_coupe = occupied_coupe
         old_occupied_sv = occupied_sv
 
-        occupied_general = random.randint(0, total_tickets_info[0])
-        occupied_platzkart = random.randint(0, total_tickets_info[1])
-        occupied_coupe = random.randint(0, total_tickets_info[2])
-        occupied_sv = random.randint(0, total_tickets_info[3])
+        occupied_general = random.randint(0, tickets_id_info[0])
+        occupied_platzkart = random.randint(0, tickets_id_info[1])
+        occupied_coupe = random.randint(0, tickets_id_info[2])
+        occupied_sv = random.randint(0, tickets_id_info[3])
 
         diff_general = occupied_general - old_occupied_general
         diff_platzkart = occupied_platzkart - old_occupied_platzkart
@@ -199,14 +193,8 @@ for i in range(10000):
         diff_sv = occupied_sv - old_occupied_sv
 
         cur.execute(
-            "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
-            (occupied_general, occupied_platzkart, occupied_coupe, occupied_sv)
-        )
-        occupied_tickets_id = cur.fetchone()[0]
-
-        cur.execute(
-            "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s, %s) RETURNING schedule_id",
-            (train_id, arrival_id, occupied_tickets_id, next_arrival_time, train_delay, parking_time)
+            "INSERT INTO schedules (train_id, intermediate_routes_id, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s) RETURNING schedule_id",
+            (train_id, intermediate_routes_id, next_arrival_time, train_delay, parking_time)
         )
 
         schedule_id = cur.fetchone()[0]
@@ -270,10 +258,10 @@ for i in range(10000):
 
     # Добавление конечной станции
     cur.execute(
-        "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING arrival_id",
+        "INSERT INTO intermediate_routes (route_id, station_id, order_number) VALUES (%s, %s, %s) RETURNING intermediate_routes_id",
         (route_id, destination_station, num_intermediate_stations)
     )
-    arrival_id = cur.fetchone()[0]
+    intermediate_routes_id = cur.fetchone()[0]
     parking_time = random.randint(5, 60)  # in minutes
     train_delay = random.randint(0, 5) # in minutes
 
@@ -282,10 +270,10 @@ for i in range(10000):
     old_occupied_coupe = occupied_coupe
     old_occupied_sv = occupied_sv
 
-    occupied_general = random.randint(0, total_tickets_info[0])
-    occupied_platzkart = random.randint(0, total_tickets_info[1])
-    occupied_coupe = random.randint(0, total_tickets_info[2])
-    occupied_sv = random.randint(0, total_tickets_info[3])
+    occupied_general = random.randint(0, tickets_id_info[0])
+    occupied_platzkart = random.randint(0, tickets_id_info[1])
+    occupied_coupe = random.randint(0, tickets_id_info[2])
+    occupied_sv = random.randint(0, tickets_id_info[3])
 
     diff_general = occupied_general - old_occupied_general
     diff_platzkart = occupied_platzkart - old_occupied_platzkart
@@ -349,17 +337,12 @@ for i in range(10000):
                     trip.set_destination(schedule_id)
                     break
 
-    cur.execute(
-        "INSERT INTO tickets (general_tickets, platzkart_tickets, coupe_tickets, sv_tickets) VALUES (%s, %s, %s, %s) RETURNING tickets_id",
-        (occupied_general, occupied_platzkart, occupied_coupe, occupied_sv)
-    )
-    occupied_tickets_id = cur.fetchone()[0]
     parking_time = random.randint(5, 60)  # in minutes
     travel_time = timedelta(minutes=random.randint(10, 120))
     next_arrival_time = last_arrival_time + travel_time + timedelta(minutes=parking_time)
     cur.execute(
-        "INSERT INTO schedules (train_id, arrival_id, occupied_tickets, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s, %s) RETURNING schedule_id",
-        (train_id, arrival_id, occupied_tickets_id, next_arrival_time, train_delay, parking_time)
+        "INSERT INTO schedules (train_id, intermediate_routes_id, arrival_date_time, train_delay, parking_time) VALUES (%s, %s, %s, %s, %s) RETURNING schedule_id",
+        (train_id, intermediate_routes_id, next_arrival_time, train_delay, parking_time)
     )
     schedule_id = cur.fetchone()[0]
 

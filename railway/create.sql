@@ -17,9 +17,7 @@ CREATE TABLE stations ( -- Станция
 );
 
 CREATE TABLE routes ( -- Маршрут
-    route_id SERIAL PRIMARY KEY,
-    destination_station INTEGER REFERENCES stations(station_id) NOT NULL,
-    departure_station INTEGER REFERENCES stations(station_id) NOT NULL
+    route_id SERIAL PRIMARY KEY
 );
 
 CREATE TABLE tickets ( -- Информация о билетах
@@ -33,11 +31,11 @@ CREATE TABLE tickets ( -- Информация о билетах
 CREATE TABLE trains ( -- Поезда
     train_id SERIAL PRIMARY KEY,
     category VARCHAR(255),
-    total_tickets INTEGER REFERENCES tickets(tickets_id)
+    tickets_id INTEGER REFERENCES tickets(tickets_id)
 );
 
 CREATE TABLE intermediate_routes ( -- Промежуточные станции
-    arrival_id SERIAL PRIMARY KEY,
+    intermediate_routes_id SERIAL PRIMARY KEY,
     route_id INTEGER REFERENCES routes(route_id) NOT NULL,
     station_id INTEGER REFERENCES stations(station_id) NOT NULL,
     order_number INTEGER
@@ -46,8 +44,7 @@ CREATE TABLE intermediate_routes ( -- Промежуточные станции
 CREATE TABLE schedules ( -- Расписание
     schedule_id SERIAL PRIMARY KEY,
     train_id INTEGER REFERENCES trains(train_id) NOT NULL,
-    arrival_id INTEGER REFERENCES intermediate_routes(arrival_id) NOT NULL,
-    occupied_tickets INTEGER REFERENCES tickets(tickets_id), 
+    intermediate_routes_id INTEGER REFERENCES intermediate_routes(intermediate_routes_id) NOT NULL,
     arrival_date_time TIMESTAMP,
     train_delay INTEGER,
     parking_time INTEGER
@@ -56,7 +53,7 @@ CREATE TABLE schedules ( -- Расписание
 CREATE TABLE passengers ( -- Пассажиры
     passenger_id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
-    passport_details VARCHAR(255) UNIQUE NOT NULL
+    passport_details VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE passenger_trips ( -- Поездка пассажира
@@ -98,11 +95,11 @@ BEGIN
     SELECT order_number 
         INTO departure_order_number 
         FROM intermediate_routes 
-        WHERE arrival_id = NEW.departure_station_schedule;
+        WHERE intermediate_routes_id = NEW.departure_station_schedule;
     SELECT order_number 
         INTO destination_order_number 
         FROM intermediate_routes 
-        WHERE arrival_id = NEW.destination_station_schedule;
+        WHERE intermediate_routes_id = NEW.destination_station_schedule;
 
     -- Проверяем, что маршруты совпадают
     IF departure_order_number IS NULL OR destination_order_number IS NULL OR departure_order_number >= destination_order_number THEN
@@ -111,7 +108,7 @@ BEGIN
 
     -- Определяем максимальное количество выбранного типа билетов на поезд
     EXECUTE 'SELECT ' || NEW.ticket_type || '_tickets FROM tickets 
-        WHERE tickets_id = (SELECT total_tickets FROM trains WHERE train_id = $1)' 
+        WHERE tickets_id = (SELECT tickets_id FROM trains WHERE train_id = $1)' 
         INTO max_tickets 
         USING NEW.train_id;
 
@@ -119,8 +116,8 @@ BEGIN
     FOR i IN departure_order_number..destination_order_number-1 LOOP
         EXECUTE 'SELECT COUNT(*) 
             FROM passenger_trips 
-            JOIN schedules ON passenger_trips.departure_station_schedule = schedules.schedule_id OR passenger_trips.destination_station_schedule = schedules.schedule_id 
-            JOIN intermediate_routes ON schedules.arrival_id = intermediate_routes.arrival_id 
+                JOIN schedules ON passenger_trips.departure_station_schedule = schedules.schedule_id OR passenger_trips.destination_station_schedule = schedules.schedule_id 
+                JOIN intermediate_routes ON schedules.intermediate_routes_id = intermediate_routes.intermediate_routes_id 
             WHERE intermediate_routes.order_number BETWEEN $1 AND $2 AND passenger_trips.ticket_type = $3 AND schedules.train_id = $4' 
             INTO occupied_tickets_on_segment 
             USING i, i+1, NEW.ticket_type, NEW.train_id;
@@ -134,10 +131,11 @@ BEGIN
     -- Увеличиваем количество занятых мест для выбранного типа билета
     EXECUTE 'UPDATE tickets SET ' || NEW.ticket_type || '_tickets = ' || NEW.ticket_type || '_tickets + 1 
         WHERE tickets_id = 
-            (SELECT occupied_tickets 
-            FROM schedules 
-            WHERE schedule_id = $1)' 
-        USING NEW.departure_station_schedule;
+            (SELECT s.occupied_tickets 
+            FROM schedules s
+                LEFT JOIN intermediate_routes ir USING(schedule_id)
+            WHERE s.schedule_id = $1 AND ir.order_number BETWEEN $2 AND $3)' 
+        USING NEW.departure_station_schedule, departure_order_number, destination_order_number;
 
     RETURN NEW;
 END;
