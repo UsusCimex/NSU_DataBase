@@ -37,22 +37,29 @@ ORDER BY r.route_id;
 -- fixed(Добавить промежуточные станции)
 -- С учётом пересадок
 WITH RECURSIVE route_path AS (
-    SELECT r1.route_id,
-        ARRAY[r1.route_id] AS route_history,
+    SELECT ir.route_id,
+        ir.station_id,
+        ir.order_number,
+        ARRAY[ir.station_id] AS route_history,
         1 as hop_count
-    FROM routes r1
-    WHERE r1.departure_station = (SELECT station_id FROM stations WHERE station_name = 'Brownton') -- Начальная станцию
+    FROM intermediate_routes ir
+    WHERE ir.station_id = (SELECT station_id FROM stations WHERE station_name = 'Allenton') -- Начальная станция
     UNION ALL
-    SELECT r2.route_id,
-        route_history || r2.route_id, 
+    SELECT ir2.route_id,
+        ir2.station_id,
+        ir2.order_number,
+        route_history || ir2.station_id, 
         rp.hop_count + 1
-    FROM routes r2
-        JOIN route_path rp ON rp.destination_station = r2.departure_station
-    WHERE NOT (r2.route_id = ANY(route_history)) -- предотвращение циклов
-          AND hop_count < 3 -- ограничение количества пересадок
+    FROM route_path rp
+         INNER JOIN intermediate_routes ir2 ON (rp.route_id = ir2.route_id AND
+                                                rp.order_number < ir2.order_number AND
+                                                rp.station_id != ir2.station_id)
+         INNER JOIN intermediate_routes ir3 ON (rp.route_id != ir3.route_id AND 
+                                                rp.station_id = ir3.station_id)
+    WHERE hop_count <= 3 -- ограничение количества пересадок
 )
 SELECT * FROM route_path
-WHERE destination_station = (SELECT station_id FROM stations WHERE station_name = 'Ashleyland') -- Конечная станцию
+WHERE station_id = (SELECT station_id FROM stations WHERE station_name = 'Barbaratown') -- Конечная станциz
 ORDER BY hop_count, route_id;
 
 -- Все станции-пересадки по маршруту
@@ -78,38 +85,37 @@ WHERE t.train_id = 4;
 
 -- fixed (не использовать количество купленных билетов)
 -- Количество занятых билетов на каждой станции
-SELECT st.station_name,
-    COUNT(DISTINCT pt.trip_id) as occupied_tickets
-FROM stations st
-    JOIN intermediate_routes ir ON st.station_id = ir.station_id
-    JOIN schedules s ON ir.intermediate_routes_id = s.intermediate_routes_id
-    JOIN passenger_trips pt ON pt.departure_station_schedule <= s.schedule_id AND pt.destination_station_schedule >= s.schedule_id
-WHERE ir.route_id = 5 AND EXISTS (
-    SELECT 1
-    FROM intermediate_routes ir_start
-        JOIN intermediate_routes ir_end ON ir_start.route_id = ir_end.route_id
-        JOIN schedules s_start ON ir_start.intermediate_routes_id = s_start.intermediate_routes_id
-        JOIN schedules s_end ON ir_end.intermediate_routes_id = s_end.intermediate_routes_id
-    WHERE 
-        s_start.schedule_id = pt.departure_station_schedule AND
-        s_end.schedule_id = pt.destination_station_schedule AND
-        ir.order_number BETWEEN ir_start.order_number AND ir_end.order_number
-    )
-GROUP BY st.station_name, ir.order_number
-ORDER BY ir.order_number;
+
+SELECT ir.order_number,
+       s.station_name AS "Station",
+       COUNT(*) AS "Count passenger"
+FROM intermediate_routes ir
+     JOIN stations s USING(station_id)
+     JOIN (SELECT pt.trip_id,
+                ir1.route_id,
+                ir1.order_number AS "order_from",
+                ir2.order_number AS "order_to"
+            FROM passenger_trips pt
+                JOIN schedules s1 ON pt.departure_station_schedule = s1.schedule_id
+                JOIN intermediate_routes ir1 ON s1.intermediate_routes_id = ir1.intermediate_routes_id
+                JOIN schedules s2 ON pt.destination_station_schedule = s2.schedule_id
+                JOIN intermediate_routes ir2 ON s2.intermediate_routes_id = ir2.intermediate_routes_id
+            WHERE pt.ticket_type LIKE 'coupe') AS trips ON ir.order_number BETWEEN trips.order_from AND trips.order_to AND ir.route_id = trips.route_id
+WHERE ir.route_id = 1
+GROUP BY ir.order_number, s.station_name;
 
 -- fixed(на два join меньше)
 -- Отчёт о ближайших поездах
 SELECT t.train_id,
-    (SELECT station_name FROM stations WHERE station_id = r.departure_station) AS "Departure",
-    (SELECT station_name FROM stations WHERE station_id = r.destination_station) AS "Destination",
+    (SELECT station_name FROM stations s JOIN intermediate_routes ir USING(station_id) WHERE ir.route_id = r.route_id AND ir.order_number = 1) AS "Departure",
+    (SELECT station_name FROM stations s JOIN intermediate_routes ir USING(station_id) WHERE ir.route_id = r.route_id AND ir.order_number = (SELECT MAX(order_number) FROM intermediate_routes WHERE route_id = r.route_id)) AS "Destination",
     sch.arrival_date_time AS "Arrival Time",
     sch.arrival_date_time + (sch.parking_time || 'minutes')::interval AS "Departure Time"
 FROM trains t
     JOIN schedules sch ON t.train_id = sch.train_id
     JOIN intermediate_routes ir ON sch.intermediate_routes_id = ir.intermediate_routes_id
     JOIN routes r ON ir.route_id = r.route_id
-WHERE st.station_name = 'Brookemouth'
+WHERE ir.station_id = (SELECT station_id FROM stations WHERE station_name = 'Allenton')
     AND sch.arrival_date_time + (sch.parking_time || 'minutes')::interval BETWEEN current_date AND current_date + interval '7 days'
 ORDER BY sch.arrival_date_time;
 
