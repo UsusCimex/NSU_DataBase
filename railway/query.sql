@@ -28,10 +28,10 @@ FROM schedules sch
     JOIN stations st ON ir.station_id = st.station_id
 WHERE EXISTS(SELECT ir2.order_number FROM intermediate_routes ir2 JOIN stations st2 ON ir2.station_id = st2.station_id
             WHERE r.route_id = ir2.route_id AND
-            st2.station_name = 'Brownton') AND
+            st2.station_name = 'Michaelhaven') AND
       EXISTS(SELECT ir2.order_number FROM intermediate_routes ir2 JOIN stations st2 ON ir2.station_id = st2.station_id
             WHERE r.route_id = ir2.route_id AND
-            st2.station_name = 'Ashleyland')
+            st2.station_name = 'Monicaberg')
 ORDER BY r.route_id;
 
 -- fixed(Добавить промежуточные станции)
@@ -43,7 +43,7 @@ WITH RECURSIVE route_path AS (
         ARRAY[ir.station_id] AS route_history,
         1 as hop_count
     FROM intermediate_routes ir
-    WHERE ir.station_id = (SELECT station_id FROM stations WHERE station_name = 'Allenton') -- Начальная станция
+    WHERE ir.station_id = (SELECT station_id FROM stations WHERE station_name = 'Michaelhaven') -- Начальная станция
     UNION ALL
     SELECT ir2.route_id,
         ir2.station_id,
@@ -51,15 +51,15 @@ WITH RECURSIVE route_path AS (
         route_history || ir2.station_id, 
         rp.hop_count + 1
     FROM route_path rp
-         INNER JOIN intermediate_routes ir2 ON (rp.route_id = ir2.route_id AND
+         JOIN intermediate_routes ir2 ON (rp.route_id = ir2.route_id AND
                                                 rp.order_number < ir2.order_number AND
-                                                rp.station_id != ir2.station_id)
-         INNER JOIN intermediate_routes ir3 ON (rp.route_id != ir3.route_id AND 
-                                                rp.station_id = ir3.station_id)
+                                                rp.station_id != ir2.station_id) OR 
+                                         (rp.route_id != ir2.route_id AND 
+                                                rp.station_id = ir2.station_id)
     WHERE hop_count <= 3 -- ограничение количества пересадок
 )
 SELECT * FROM route_path
-WHERE station_id = (SELECT station_id FROM stations WHERE station_name = 'Barbaratown') -- Конечная станциz
+WHERE station_id = (SELECT station_id FROM stations WHERE station_name = 'Monicaberg') -- Конечная станциz
 ORDER BY hop_count, route_id;
 
 -- Все станции-пересадки по маршруту
@@ -85,7 +85,6 @@ WHERE t.train_id = 4;
 
 -- fixed (не использовать количество купленных билетов)
 -- Количество занятых билетов на каждой станции
-
 SELECT ir.order_number,
        s.station_name AS "Station",
        COUNT(*) AS "Count passenger"
