@@ -97,22 +97,29 @@ def generate_trains(stations, marshruts, n=10):
     } for i in range(1, n + 1)]
 
 
-def generate_timetable(trains, stations, n=100):
+def generate_timetable(trains, marshruts, n=10):
     timetable = []
-    for _ in range(n):
-        train = random.choice(trains)
-        station = random.choice(stations)
-        arrival_time = faker.date_time_this_year(before_now=True, after_now=False)
-        departure_time = arrival_time + datetime.timedelta(minutes=random.randint(5, 60))
-        timetable.append({
-            "id": len(timetable) + 1,
-            "train_id": train["train_id"],
-            "station_id": station["station_id"],
-            "arrival_time": arrival_time,
-            "departure_time": departure_time,
-            "napr": faker.boolean(),
-            "tickets": random.randint(0, 200)
-        })
+    id_counter = 1
+    for train in trains:
+        marshrut = next((m for m in marshruts if m['marshrut_id'] == train['marshrut_id']), None)
+        if not marshrut:
+            continue
+        station_sequence = sorted([m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']], key=lambda x: x['order_num'])
+        for _ in range(n):
+            for i, station in enumerate(station_sequence):
+                # Для каждой станции устанавливаем время прибытия и отправления, кроме первой и последней
+                arrival_time = faker.date_time_this_year(before_now=True, after_now=False)
+                departure_time = arrival_time + datetime.timedelta(minutes=random.randint(5, 60))
+                timetable.append({
+                    "id": id_counter,
+                    "train_id": train["train_id"],
+                    "station_id": station["station_id"],
+                    "marshrut_id": marshrut['marshrut_id'],
+                    "arrival_time": arrival_time if i > 0 else departure_time,
+                    "departure_time": departure_time if i < len(station_sequence) - 1 else arrival_time,
+                    "napr": True  # Предполагаем, что направление движения всегда вперед, для упрощения
+                })
+                id_counter += 1
     return timetable
 
 
@@ -164,25 +171,31 @@ def generate_passengers(n=10):
     return [{"passenger_id": i, "full_name": faker.unique.name()} for i in range(1, n + 1)]
 
 
-def generate_tickets(passengers, stations, trains, n=50):
+def generate_tickets(passengers, marshruts, trains, n=50):
     tickets = []
     for _ in range(n):
         passenger = random.choice(passengers)
         train = random.choice(trains)
-        departure_station_id = random.choice(stations)["station_id"]
-        arrival_station_id = departure_station_id
-        while arrival_station_id == departure_station_id:
-            arrival_station_id = random.choice(stations)["station_id"]
+        # Выбираем случайный маршрут из доступных для поезда
+        marshrut = next((m for m in marshruts if m['marshrut_id'] == train['marshrut_id']), None)
+        if not marshrut:
+            continue
+        station_sequence = [m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']]
+        if len(station_sequence) < 2:  # Нужно как минимум 2 станции для формирования билета
+            continue
+        departure_station = random.choice(station_sequence[:-1])  # Исключаем последнюю станцию для отправления
+        arrival_station = random.choice(station_sequence[station_sequence.index(departure_station)+1:])  # Выбираем станцию прибытия, следующую за станцией отправления
         departure_time = faker.date_time_this_year(before_now=False, after_now=True)
-        ticket = {
+        tickets.append({
             "passenger_id": passenger["passenger_id"],
             "train_id": train["train_id"],
-            "departure_station_id": departure_station_id,
-            "arrival_station_id": arrival_station_id,
+            "marshrut_id": marshrut['marshrut_id'],
+            "departure_station_id": departure_station['station_id'],
+            "arrival_station_id": arrival_station['station_id'],
             "departure_time": departure_time
-        }
-        tickets.append(ticket)
+        })
     return tickets
+
 
 def insert_data(conn, table_name, data):
     last_time = time.time()
@@ -212,7 +225,7 @@ def main():
     # Подключение к базе данных
     conn = connect()
 
-    global_time = time.time();
+    global_time = time.time()
 
     start_time = time.time()
     stations = generate_stations(1000)
@@ -251,13 +264,13 @@ def main():
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    tickets = generate_tickets(passengers, stations, trains, 10000)
+    tickets = generate_tickets(passengers, marshruts, trains, 10000)
     insert_data(conn, "tickets", tickets)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    timetable = generate_timetable(trains, stations, 20000)
+    timetable = generate_timetable(trains, marshruts, 10)
     insert_data(conn, "timetable", timetable)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
