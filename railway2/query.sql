@@ -1,4 +1,24 @@
 -- SQL-запрос для формирования кумулятивного отчёта по датам
+WITH ordered_tickets AS (
+SELECT t.marshrut_id,
+       m1.order_num AS order_from,
+       m2.order_num AS order_to
+FROM tickets t
+    JOIN marshrut m1
+        ON m1.marshrut_id = t.marshrut_id AND m1.station_id = t.departure_station_id
+    JOIN marshrut m2
+        ON m2.marshrut_id = t.marshrut_id AND m2.station_id = t.arrival_station_id
+)
+SELECT t.arrival_time::date AS data,
+       COUNT(1) AS count_passangers,
+       SUM(dst.distance) AS sum_distance
+FROM timetable t
+    JOIN marshrut m1 ON m1.marshrut_id = t.marshrut_id AND m1.station_id = t.station_id
+    JOIN marshrut m2 ON m2.marshrut_id = t.marshrut_id AND m2.order_num = m1.order_num + 1
+    JOIN distances dst ON dst.station1_id = m1.station_id AND dst.station2_id = m2.station_id
+    JOIN ordered_tickets ot ON t.marshrut_id = ot.marshrut_id AND m1.order_num BETWEEN ot.order_from AND ot.order_to
+GROUP BY data
+ORDER BY data;
 
 
 -- Запрос на заполнение данных с выводом при помощи PL/SQL
