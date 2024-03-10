@@ -10,13 +10,14 @@ FROM tickets t
         ON m2.marshrut_id = t.marshrut_id AND m2.station_id = t.arrival_station_id
 )
 SELECT t.arrival_time::date AS data,
+       COUNT(distinct t.marshrut_id || '-' || t.train_id) AS trip_count,
        COUNT(1) AS count_passangers,
-       SUM(dst.distance) AS sum_distance
+       COUNT(1)::numeric / SUM(dst.distance) AS passanger_dist
 FROM timetable t
     JOIN marshrut m1 ON m1.marshrut_id = t.marshrut_id AND m1.station_id = t.station_id
     JOIN marshrut m2 ON m2.marshrut_id = t.marshrut_id AND m2.order_num = m1.order_num + 1
     JOIN distances dst ON dst.station1_id = m1.station_id AND dst.station2_id = m2.station_id
-    JOIN ordered_tickets ot ON t.marshrut_id = ot.marshrut_id AND m1.order_num BETWEEN ot.order_from AND ot.order_to
+    RIGHT JOIN ordered_tickets ot ON t.marshrut_id = ot.marshrut_id AND m1.order_num BETWEEN ot.order_from AND ot.order_to
 GROUP BY data
 ORDER BY data;
 
@@ -29,8 +30,8 @@ $$
     BEGIN
         FOR r IN SELECT * FROM timetable LIMIT 100
             LOOP
-                RAISE NOTICE 'Train ID: %, Station ID: %, Arrival: %, Departure: %, Tickets: %',
-                    r.train_id, r.station_id, r.arrival_time, r.departure_time, r.tickets;
+                RAISE NOTICE 'Train ID: %, Station ID: %, Arrival: %, Departure: %',
+                    r.train_id, r.station_id, r.arrival_time, r.departure_time;
             END LOOP;
     EXCEPTION
         WHEN OTHERS THEN
@@ -204,7 +205,10 @@ $$
 DECLARE
     tickets_sold INT;
 BEGIN
-    SELECT SUM(tickets) INTO tickets_sold FROM timetable WHERE train_id = OLD.train_id;
+    SELECT COUNT(1) INTO tickets_sold
+    FROM tickets
+    WHERE train_id = OLD.train_id;
+
     IF tickets_sold > 300 THEN
         INSERT INTO train_deletions_audit (train_id, deleted_tickets)
         VALUES (OLD.train_id, tickets_sold);
