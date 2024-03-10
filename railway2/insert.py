@@ -3,9 +3,10 @@ from psycopg2 import extras
 import random
 from faker import Faker
 import datetime
-import getpass
+import time
 
 faker = Faker()
+random.seed(21212)
 
 def connect():
     password = getpass.getpass("Введите пароль: ")
@@ -16,38 +17,84 @@ def connect():
         host="localhost"
     )
 
+
 def generate_stations(n=10):
     return [{"station_id": i, "name": faker.unique.city()} for i in range(1, n + 1)]
 
-def generate_marshruts(n=5):
-    return [{"marshrut_id": i} for i in range(1, n + 1)]
+def generate_station_distances(stations, min_distance=10, max_distance=500):
+    distances = []
+    for i, station1 in enumerate(stations):
+        for station2 in stations[i + 1:]:
+            distance = {
+                "station1_id": station1["station_id"],
+                "station2_id": station2["station_id"],
+                "distance": random.randint(min_distance, max_distance)
+            }
+            distances.append(distance)
+    return distances
 
-def generate_tmashruts(stations, marshruts):
-    tmashruts = []
-    used_combinations = set()
-    for marshrut in marshruts:
-        while True:
-            station_ids = random.sample([station["station_id"] for station in stations], random.randint(3, 7))
-            station_ids_tuple = tuple(station_ids)
-            if station_ids_tuple not in used_combinations:
-                used_combinations.add(station_ids_tuple)
-                break
+def generate_marshruts(stations, n=5):
+    marshruts = []
+    for marshrut_id in range(1, n + 1):
+        # Генерируем случайное количество станций для каждого маршрута, например, от 2 до длины списка станций
+        num_stations = random.randint(2, min(len(stations),
+                                             5))  # Предполагаем, что маршрут не превышает 5 станций для упрощения
+        station_ids = random.sample(stations, num_stations)
         for order_num, station_id in enumerate(station_ids, start=1):
-            tmashruts.append({
-                "tmashrut_id": len(tmashruts) + 1, 
-                "marshrut_id": marshrut["marshrut_id"], 
-                "station_id": station_id, 
-                "order_num": order_num})
-    return tmashruts
+            marshruts.append({
+                "marshrut_id": marshrut_id,
+                "station_id": station_id['station_id'],
+                "order_num": order_num
+            })
+    return marshruts
+
+
+def generate_tmarshruts(marshruts):
+    tmarshruts = []
+    tmarshrut_id_counter = 1
+
+    # Сначала создаем маппинг маршрутов по их ID для легкого доступа
+    marshrut_mapping = {}
+    for marshrut in marshruts:
+        if marshrut['marshrut_id'] not in marshrut_mapping:
+            marshrut_mapping[marshrut['marshrut_id']] = []
+        marshrut_mapping[marshrut['marshrut_id']].append(marshrut)
+
+    # Ищем все возможные комбинации для пересадок
+    for marshrut_id, marshrut_data in marshrut_mapping.items():
+        for next_marshrut_id, next_marshrut_data in marshrut_mapping.items():
+            if marshrut_id == next_marshrut_id:
+                continue  # Пропускаем одинаковые маршруты
+            # Ищем общую станцию
+            common_stations = [data for data in marshrut_data if
+                               data['station_id'] in [n_data['station_id'] for n_data in next_marshrut_data]]
+            if common_stations:
+                # Для каждой общей станции формируем полный пересадочный маршрут
+                for common_station in common_stations:
+                    combined_marshrut = marshrut_data[:common_station['order_num']] + next_marshrut_data[
+                      next((index for index, d in enumerate(next_marshrut_data)
+                            if d.get('station_id') == common_station['station_id']), 0):]
+                    for order, data in enumerate(combined_marshrut, start=1):
+                        tmarshruts.append({
+                            "tmarshrut_id": tmarshrut_id_counter,
+                            "marshrut_id": data['marshrut_id'],
+                            "station_id": data['station_id'],
+                            "order_num": order
+                        })
+                    tmarshrut_id_counter += 1
+
+    return tmarshruts
+
 
 def generate_trains(stations, marshruts, n=10):
     return [{
-        "train_id": i, 
-        "category": faker.random_element(elements=('Regular', 'Express', 'Luxury')), 
-        "quantity": random.randint(5, 15), 
-        "head_station_id": random.choice(stations)["station_id"], 
+        "train_id": i,
+        "category": faker.random_element(elements=('Regular', 'Express', 'Luxury')),
+        "quantity": random.randint(5, 15),
+        "head_station_id": random.choice(stations)["station_id"],
         "marshrut_id": random.choice(marshruts)["marshrut_id"]
     } for i in range(1, n + 1)]
+
 
 def generate_timetable(trains, stations, n=100):
     timetable = []
@@ -66,10 +113,11 @@ def generate_timetable(trains, stations, n=100):
             "tickets": random.randint(0, 200)
         })
     return timetable
-    
+
+
 def generate_empl(stations, n=20):
     empl = []
-    positions = ['Машинист', 'Кондуктор', 'Инженер', 'Охранник']
+    positions = ['Driver', 'Conductor', 'Engineer', 'Security Guard']
     for i in range(1, n + 1):
         station = random.choice(stations)
         empl.append({
@@ -79,6 +127,7 @@ def generate_empl(stations, n=20):
             "station_id": station["station_id"]
         })
     return empl
+
 
 def generate_train_empl(trains, empl):
     train_empl = []
@@ -96,6 +145,7 @@ def generate_train_empl(trains, empl):
             })
     return train_empl
 
+
 def generate_waitings(trains, n=5000):
     waitings = []
     for _ in range(n):
@@ -104,61 +154,133 @@ def generate_waitings(trains, n=5000):
             "waiting_id": len(waitings) + 1,
             "train_id": train["train_id"],
             "date": faker.date_time_this_year(before_now=True, after_now=False),
-            "napr": faker.random_element(elements=('Север', 'Юг', 'Восток', 'Запад')),
+            "napr": faker.boolean(),
             "value": random.randint(0, 120)
         })
     return waitings
 
+def generate_passengers(n=10):
+    return [{"passenger_id": i, "full_name": faker.unique.name()} for i in range(1, n + 1)]
+
+
+def generate_tickets(passengers, stations, trains, n=50):
+    tickets = []
+    for _ in range(n):
+        passenger = random.choice(passengers)
+        train = random.choice(trains)
+        departure_station_id = random.choice(stations)["station_id"]
+        arrival_station_id = departure_station_id
+        while arrival_station_id == departure_station_id:
+            arrival_station_id = random.choice(stations)["station_id"]
+        departure_time = faker.date_time_this_year(before_now=False, after_now=True)
+        ticket = {
+            "passenger_id": passenger["passenger_id"],
+            "train_id": train["train_id"],
+            "departure_station_id": departure_station_id,
+            "arrival_station_id": arrival_station_id,
+            "departure_time": departure_time
+        }
+        tickets.append(ticket)
+    return tickets
+
 def insert_data(conn, table_name, data):
+    last_time = time.time()
     if not data:
         print(f"No data provided for table {table_name}")
         return
-    
+
     columns = data[0].keys()
     column_names = ", ".join(columns)
-    
+
     query = f"INSERT INTO {table_name} ({column_names}) VALUES %s"
-    values = [tuple(item[column] for column in columns) for item in data]
-    
+    values = [[item[column] for column in columns] for item in data]
+
     cur = conn.cursor()
     try:
-        print(f"\"{table_name}\" successfully loaded into the database")
         extras.execute_values(cur, query, values, template=None, page_size=100)
         conn.commit()
+        print(f"\"{table_name}\" successfully loaded into the database")
     except Exception as e:
         print(f"An error occurred: {e}")
         conn.rollback()
     finally:
         cur.close()
 
+
 def main():
     # Подключение к базе данных
     conn = connect()
-    
-    stations = generate_stations(6000)
+
+    global_time = time.time();
+
+    start_time = time.time()
+    stations = generate_stations(1000)
     insert_data(conn, "stations", stations)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
-    marshruts = generate_marshruts(5000)
+    start_time = time.time()
+    distances = generate_station_distances(stations)
+    insert_data(conn, "distances", distances)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
+
+    start_time = time.time()
+    marshruts = generate_marshruts(stations, 500)
     insert_data(conn, "marshrut", marshruts)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
-    tmashruts = generate_tmashruts(stations, marshruts)
-    insert_data(conn, "tmashrut", tmashruts)
+    start_time = time.time()
+    tmarshruts = generate_tmarshruts(random.choices(marshruts, k=100))
+    insert_data(conn, "tmarshrut", tmarshruts)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
+    start_time = time.time()
     trains = generate_trains(stations, marshruts, 1000)
     insert_data(conn, "trains", trains)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
+    start_time = time.time()
+    passangers = generate_passengers(100)
+    insert_data(conn, "passengers", passangers)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
+
+    start_time = time.time()
+    tickets = generate_tickets(passangers, stations, trains, 10000)
+    insert_data(conn, "tickets", tickets)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
+
+    start_time = time.time()
     timetable = generate_timetable(trains, stations, 20000)
     insert_data(conn, "timetable", timetable)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
+    start_time = time.time()
     empl = generate_empl(stations, 10000)
     insert_data(conn, "empl", empl)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
+    start_time = time.time()
     train_empl = generate_train_empl(trains, empl)
     insert_data(conn, "train_empl", train_empl)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
+    start_time = time.time()
     waitings = generate_waitings(trains, 5000)
     insert_data(conn, "waitings", waitings)
+    insert_time = time.time()
+    print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
+    end_global_time = time.time()
+    print(f"Time taken to generate and insert all data: {end_global_time - global_time} seconds")
     # Закрытие соединения с базой данных
     conn.close()
 
