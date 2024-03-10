@@ -4,6 +4,7 @@ import random
 from faker import Faker
 import datetime
 import time
+import getpass
 
 faker = Faker()
 random.seed(21212)
@@ -146,16 +147,16 @@ def generate_train_empl(trains, empl):
     return train_empl
 
 
-def generate_waitings(trains, n=5000):
+def generate_waitings(timetable, n=50):
     waitings = []
-    for _ in range(n):
-        train = random.choice(trains)
+    for el in random.choices(timetable, k=n):
+        wait = random.randint(0, 120)
         waitings.append({
             "waiting_id": len(waitings) + 1,
-            "train_id": train["train_id"],
-            "date": faker.date_time_this_year(before_now=True, after_now=False),
+            "train_id": el["train_id"],
+            "date": el["arrival_time"] + datetime.timedelta(minutes=wait),
             "napr": faker.boolean(),
-            "value": random.randint(0, 120)
+            "value": wait
         })
     return waitings
 
@@ -244,13 +245,13 @@ def main():
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    passangers = generate_passengers(100)
-    insert_data(conn, "passengers", passangers)
+    passengers = generate_passengers(100)
+    insert_data(conn, "passengers", passengers)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    tickets = generate_tickets(passangers, stations, trains, 10000)
+    tickets = generate_tickets(passengers, stations, trains, 10000)
     insert_data(conn, "tickets", tickets)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
@@ -274,7 +275,7 @@ def main():
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    waitings = generate_waitings(trains, 5000)
+    waitings = generate_waitings(timetable, 2000)
     insert_data(conn, "waitings", waitings)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")

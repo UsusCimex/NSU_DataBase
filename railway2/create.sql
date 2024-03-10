@@ -53,22 +53,21 @@ CREATE TABLE IF NOT EXISTS trains (
 CREATE TABLE IF NOT EXISTS tickets (
     ticket_id SERIAL PRIMARY KEY,
     passenger_id INT REFERENCES passengers(passenger_id),        -- ID пассажира
-    train_id INT REFERENCES trains(train_id),                    -- ID поезда
+    train_id INT REFERENCES trains(train_id) ON DELETE CASCADE,  -- ID поезда
     departure_station_id INT REFERENCES stations(station_id),    -- ID станции отправки
     arrival_station_id INT REFERENCES stations(station_id),      -- ID станции прибытия
     departure_time TIMESTAMP NOT NULL,                           -- Время отправления
     purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP            -- Дата покупки билета
 );
 
-
 CREATE TABLE IF NOT EXISTS timetable (
     id INT PRIMARY KEY,
-    train_id INT REFERENCES trains(train_id),           --Ид поезда
-    station_id INT REFERENCES stations(station_id),     --Ид станции
-    arrival_time TIMESTAMP,                             --Время отправления
-    departure_time TIMESTAMP,                           --Время прибытия
-	napr BOOLEAN,                                       --Направление движения
-    tickets INT                                         --Количество билетов
+    train_id INT REFERENCES trains(train_id) ON DELETE CASCADE , --Ид поезда
+    station_id INT REFERENCES stations(station_id),              --Ид станции
+    arrival_time TIMESTAMP,                                      --Время отправления
+    departure_time TIMESTAMP,                                    --Время прибытия
+	napr BOOLEAN,                                                --Направление движения
+    tickets INT                                                  --Количество билетов
 );
 
 CREATE TABLE IF NOT EXISTS empl (
@@ -79,15 +78,15 @@ CREATE TABLE IF NOT EXISTS empl (
 );
 
 CREATE TABLE IF NOT EXISTS train_empl (
-    train_id INT REFERENCES trains(train_id),           --Номер поезда
-    employee_id INT REFERENCES empl(employee_id),       --Ид работника
+    train_id INT REFERENCES trains(train_id) ON DELETE CASCADE, --Номер поезда
+    employee_id INT REFERENCES empl(employee_id),               --Ид работника
     PRIMARY KEY(train_id, employee_id)
 );
 
 CREATE TABLE IF NOT EXISTS waitings (
     waiting_id INT PRIMARY KEY, 
-    train_id INT REFERENCES trains(train_id),           --Ид поезда
-    date TIMESTAMP,                                     --Время отправки
-    napr BOOLEAN,                                       --Направление
-    value INT                                           --Задержка в минутах
+    train_id INT REFERENCES trains(train_id) ON DELETE CASCADE , --Ид поезда
+    date TIMESTAMP,                                              --Время отправки
+    napr BOOLEAN,                                                --Направление
+    value INT                                                    --Задержка в минутах
 );
