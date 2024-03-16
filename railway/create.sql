@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS passengers CASCADE;
 DROP TABLE IF EXISTS stations CASCADE;
-DROP TABLE IF EXISTS marshrut CASCADE;
-DROP TABLE IF EXISTS tmarshrut CASCADE;
+DROP TABLE IF EXISTS marshruts CASCADE;
+DROP TABLE IF EXISTS tmarshruts CASCADE;
 DROP TABLE IF EXISTS trains CASCADE;
 DROP TABLE IF EXISTS timetable CASCADE;
 DROP TABLE IF EXISTS empl CASCADE;
@@ -26,20 +26,20 @@ CREATE TABLE IF NOT EXISTS distances (
     distance INT REFERENCES stations(station_id)
 );
 
-CREATE TABLE IF NOT EXISTS marshrut (
+CREATE TABLE IF NOT EXISTS marshruts (
     marshrut_id INT,
     station_id INT REFERENCES stations(station_id),     --Ид станции
     order_num INT,                                      --Порядок маршрута
     PRIMARY KEY (marshrut_id, station_id)
 );
 
-CREATE TABLE IF NOT EXISTS tmarshrut (
+CREATE TABLE IF NOT EXISTS tmarshruts (
     tmarshrut_id INT, 
     marshrut_id INT,                                    --Ид маршрута
     station_id INT,                                     --Ид станции
     order_num INT NOT NULL,                             --Порядок маршрута
     PRIMARY KEY(tmarshrut_id, marshrut_id, station_id),
-    FOREIGN KEY(marshrut_id, station_id) REFERENCES  marshrut(marshrut_id, station_id)
+    FOREIGN KEY(marshrut_id, station_id) REFERENCES  marshruts(marshrut_id, station_id)
 );
 
 CREATE TABLE IF NOT EXISTS trains (
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     arrival_station_id INT REFERENCES stations(station_id),      -- ID станции прибытия
     departure_time TIMESTAMP NOT NULL,                           -- Время отправления
     purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,           -- Дата покупки билета
-    FOREIGN KEY(marshrut_id, departure_station_id) REFERENCES marshrut(marshrut_id, station_id)
+    FOREIGN KEY(marshrut_id, departure_station_id) REFERENCES marshruts(marshrut_id, station_id)
 );
 
 CREATE TABLE IF NOT EXISTS timetable (
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS timetable (
     arrival_time TIMESTAMP,                                      --Время отправления
     departure_time TIMESTAMP,                                    --Время прибытия
 	napr BOOLEAN,                                                --Направление движения
-    FOREIGN KEY(marshrut_id, station_id) REFERENCES marshrut(marshrut_id, station_id)
+    FOREIGN KEY(marshrut_id, station_id) REFERENCES marshruts(marshrut_id, station_id)
 );
 
 CREATE TABLE IF NOT EXISTS empl (

@@ -185,7 +185,7 @@ def generate_tickets(passengers, marshruts, trains, n=50):
             continue
         departure_station = random.choice(station_sequence[:-1])  # Исключаем последнюю станцию для отправления
         arrival_station = random.choice(station_sequence[station_sequence.index(departure_station)+1:])  # Выбираем станцию прибытия, следующую за станцией отправления
-        departure_time = faker.date_time_this_year(before_now=False, after_now=True)
+        departure_time = faker.date_time_this_year(before_now=True, after_now=False)
         tickets.append({
             "passenger_id": passenger["passenger_id"],
             "train_id": train["train_id"],
@@ -241,13 +241,13 @@ def main():
 
     start_time = time.time()
     marshruts = generate_marshruts(stations, 500)
-    insert_data(conn, "marshrut", marshruts)
+    insert_data(conn, "marshruts", marshruts)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
     tmarshruts = generate_tmarshruts(random.choices(marshruts, k=100))
-    insert_data(conn, "tmarshrut", tmarshruts)
+    insert_data(conn, "tmarshruts", tmarshruts)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
