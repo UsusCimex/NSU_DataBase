@@ -6,19 +6,19 @@ WITH daily_data AS (SELECT t.departure_time::date         AS date,
                     FROM tickets AS t
                              LEFT JOIN distances AS d
                                   ON (t.departure_station_id = d.station1_id AND t.arrival_station_id = d.station2_id)
-                    GROUP BY date),
+                    GROUP BY t.departure_time::date),
      quarterly_data AS (SELECT date_trunc('quarter', daily_data.date)::date AS quarter,
                                SUM(num_trips)                               AS total_trips_quarter,
                                SUM(num_passengers)                          AS total_passengers_quarter,
                                SUM(passenger_kilometers)                    AS total_passenger_kilometers_quarter
                         FROM daily_data
-                        GROUP BY quarter),
+                        GROUP BY date_trunc('quarter', daily_data.date)::date),
      yearly_data AS (SELECT EXTRACT(YEAR FROM daily_data.date)::integer AS year,
                             SUM(num_trips)                              AS total_trips_year,
                             SUM(num_passengers)                         AS total_passengers_year,
                             SUM(passenger_kilometers)                   AS total_passenger_kilometers_year
                      FROM daily_data
-                     GROUP BY year)
+                     GROUP BY EXTRACT(YEAR FROM daily_data.date)::integer)
 SELECT TO_CHAR(date, 'YYYY:MM:DD') as date,
        num_trips,
        num_passengers,
@@ -93,7 +93,7 @@ BEGIN
         LOOP
             RAISE NOTICE 'Date: %, num_trips: %, num_passengers: %, passenger_kilometers: %', r.date, r.num_trips, r.num_passengers, r.passenger_kilometers;
         END LOOP;
-END;
+END
 $$ LANGUAGE plpgsql;
 
 -- Функция для корректировки времени прибытия поездов
@@ -133,7 +133,7 @@ CREATE OR REPLACE FUNCTION check_train_station_route()
 $$
 BEGIN
     IF NOT EXISTS (SELECT 1
-                   FROM marshrut m
+                   FROM marshruts m
                             JOIN trains t ON m.marshrut_id = t.marshrut_id
                    WHERE t.train_id = NEW.train_id
                      AND m.station_id = NEW.station_id) THEN
@@ -164,7 +164,7 @@ BEGIN
     -- Проверяем, является ли станция начальной в маршруте
     SELECT order_num
     INTO cur_station_order_num
-    FROM tmarshrut
+    FROM tmarshruts
     WHERE station_id = NEW.station_id
       AND marshrut_id = (SELECT marshrut_id FROM trains WHERE train_id = NEW.train_id);
 
@@ -172,7 +172,7 @@ BEGIN
         -- Получаем order_num предыдущей станции
         SELECT tms.station_id, tms.order_num
         INTO prev_station_id, prev_station_order_num
-        FROM tmarshrut tms
+        FROM tmarshruts tms
         WHERE tms.marshrut_id = (SELECT marshrut_id FROM trains WHERE train_id = NEW.train_id)
           AND tms.order_num < prev_station_order_num
         ORDER BY tms.order_num DESC
@@ -228,10 +228,10 @@ BEGIN
     SELECT COALESCE(MAX(marshrut_id), 0) + 1
     INTO next_marshrut_id
     FROM (SELECT marshrut_id
-          FROM marshrut
+          FROM marshruts
           UNION
           SELECT marshrut_id
-          FROM tmarshrut) AS combined;
+          FROM tmarshruts) AS combined;
 
     IF NEW.marshrut_id IS NULL THEN
         NEW.marshrut_id := next_marshrut_id;
@@ -242,7 +242,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE TRIGGER auto_assign_marshrut_id_before_insert
     BEFORE INSERT
-    ON marshrut
+    ON marshruts
     FOR EACH ROW
 EXECUTE FUNCTION auto_assign_marshrut_id();
 

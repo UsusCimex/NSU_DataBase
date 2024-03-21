@@ -9,6 +9,7 @@ import getpass
 faker = Faker()
 random.seed(21212)
 
+
 def connect():
     password = getpass.getpass("Введите пароль: ")
     return psycopg2.connect(
@@ -22,6 +23,7 @@ def connect():
 def generate_stations(n=10):
     return [{"station_id": i, "name": faker.unique.city()} for i in range(1, n + 1)]
 
+
 def generate_station_distances(stations, min_distance=10, max_distance=500):
     distances = []
     for i, station1 in enumerate(stations):
@@ -33,6 +35,7 @@ def generate_station_distances(stations, min_distance=10, max_distance=500):
             }
             distances.append(distance)
     return distances
+
 
 def generate_marshruts(stations, n=5):
     marshruts = []
@@ -73,8 +76,12 @@ def generate_tmarshruts(marshruts):
                 # Для каждой общей станции формируем полный пересадочный маршрут
                 for common_station in common_stations:
                     combined_marshrut = marshrut_data[:common_station['order_num']] + next_marshrut_data[
-                      next((index for index, d in enumerate(next_marshrut_data)
-                            if d.get('station_id') == common_station['station_id']), 0):]
+                                                                                      next((index for index, d in
+                                                                                            enumerate(
+                                                                                                next_marshrut_data)
+                                                                                            if d.get('station_id') ==
+                                                                                            common_station[
+                                                                                                'station_id']), 0):]
                     for order, data in enumerate(combined_marshrut, start=1):
                         tmarshruts.append({
                             "tmarshrut_id": tmarshrut_id_counter,
@@ -104,11 +111,12 @@ def generate_timetable(trains, marshruts, n=10):
         marshrut = next((m for m in marshruts if m['marshrut_id'] == train['marshrut_id']), None)
         if not marshrut:
             continue
-        station_sequence = sorted([m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']], key=lambda x: x['order_num'])
+        station_sequence = sorted([m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']],
+                                  key=lambda x: x['order_num'])
         for _ in range(n):
             for i, station in enumerate(station_sequence):
                 # Для каждой станции устанавливаем время прибытия и отправления, кроме первой и последней
-                arrival_time = faker.date_time_this_year(before_now=True, after_now=False)
+                arrival_time = faker.date_time_between_dates(datetime_start="-2y", datetime_end="now")
                 departure_time = arrival_time + datetime.timedelta(minutes=random.randint(5, 60))
                 timetable.append({
                     "id": id_counter,
@@ -167,6 +175,7 @@ def generate_waitings(timetable, n=50):
         })
     return waitings
 
+
 def generate_passengers(n=10):
     return [{"passenger_id": i, "full_name": faker.unique.name()} for i in range(1, n + 1)]
 
@@ -184,8 +193,9 @@ def generate_tickets(passengers, marshruts, trains, n=50):
         if len(station_sequence) < 2:  # Нужно как минимум 2 станции для формирования билета
             continue
         departure_station = random.choice(station_sequence[:-1])  # Исключаем последнюю станцию для отправления
-        arrival_station = random.choice(station_sequence[station_sequence.index(departure_station)+1:])  # Выбираем станцию прибытия, следующую за станцией отправления
-        departure_time = faker.date_time_this_year(before_now=True, after_now=False)
+        arrival_station = random.choice(station_sequence[station_sequence.index(
+            departure_station) + 1:])  # Выбираем станцию прибытия, следующую за станцией отправления
+        departure_time = faker.date_time_between_dates(datetime_start="-2y", datetime_end="now")
         tickets.append({
             "passenger_id": passenger["passenger_id"],
             "train_id": train["train_id"],
@@ -297,6 +307,7 @@ def main():
     print(f"Time taken to generate and insert all data: {end_global_time - global_time} seconds")
     # Закрытие соединения с базой данных
     conn.close()
+
 
 if __name__ == "__main__":
     main()
