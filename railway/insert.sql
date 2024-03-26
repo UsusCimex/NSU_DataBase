@@ -53,7 +53,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION generate_tmarshruts() RETURNS VOID AS
+-- CREATE OR REPLACE FUNCTION generate_tmarshruts() RETURNS VOID AS
+DO
 $$
 DECLARE
     m1                   RECORD;
@@ -61,30 +62,34 @@ DECLARE
     s1                   RECORD;
     s2                   RECORD;
     tmarshrut_id_counter INTEGER := 1;
-    order_num            INTEGER;
+    var_order_num            INTEGER;
 BEGIN
-    FOR m1 IN SELECT * FROM marshruts
+    FOR m1 IN SELECT * FROM marshruts m WHERE m.order_num > 1
         LOOP
-            FOR m2 IN SELECT * FROM marshruts WHERE marshrut_id > m1.marshrut_id AND station_id = m1.station_id
+            FOR m2 IN SELECT * FROM marshruts m WHERE m.marshrut_id > m1.marshrut_id AND
+                                                    m.station_id = m1.station_id AND
+                                                    m.order_num < (SELECT MAX(mt.order_num) from marshruts mt where mt.marshrut_id = m.marshrut_id)
                 LOOP
-                    order_num := 1;
-                    FOR s1 IN SELECT * FROM marshruts WHERE marshrut_id = m1.marshrut_id AND order_num <= m1.order_num
+                    var_order_num := 1;
+                    FOR s1 IN SELECT * FROM marshruts m WHERE m.marshrut_id = m1.marshrut_id AND m.order_num <= m1.order_num
                         LOOP
                             INSERT INTO tmarshruts (tmarshrut_id, marshrut_id, station_id, order_num)
-                            VALUES (tmarshrut_id_counter, m1.marshrut_id, m1.station_id, order_num);
-                            order_num := order_num + 1;
+                            VALUES (tmarshrut_id_counter, s1.marshrut_id, s1.station_id, var_order_num);
+                            var_order_num := var_order_num + 1;
                         END LOOP;
-                    FOR s2 IN SELECT * FROM marshruts WHERE marshrut_id = m2.marshrut_id AND order_num >= m2.order_num
+                    FOR s2 IN SELECT * FROM marshruts m WHERE m.marshrut_id = m2.marshrut_id AND m.order_num >= m2.order_num
                         LOOP
                             INSERT INTO tmarshruts (tmarshrut_id, marshrut_id, station_id, order_num)
-                            VALUES (tmarshrut_id_counter, m2.marshrut_id, m2.station_id, order_num - 1);
-                            order_num := order_num + 1;
+                            VALUES (tmarshrut_id_counter, s2.marshrut_id, s2.station_id, var_order_num - 1);
+                            var_order_num := var_order_num + 1;
                         END LOOP;
                     tmarshrut_id_counter := tmarshrut_id_counter + 1;
                 END LOOP;
         END LOOP;
 END;
 $$ LANGUAGE plpgsql;
+
+SELECT * FROM tmarshruts LIMIT 10;
 
 CREATE OR REPLACE FUNCTION generate_timetable(n INTEGER DEFAULT 10) RETURNS VOID AS
 $$

@@ -125,7 +125,7 @@ def generate_timetable(trains, marshruts, n=10):
                     "marshrut_id": marshrut['marshrut_id'],
                     "arrival_time": arrival_time if i > 0 else departure_time,
                     "departure_time": departure_time if i < len(station_sequence) - 1 else arrival_time,
-                    "napr": True  # Предполагаем, что направление движения всегда вперед, для упрощения
+                    "napr": True
                 })
                 id_counter += 1
     return timetable
