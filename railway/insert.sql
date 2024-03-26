@@ -53,8 +53,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- CREATE OR REPLACE FUNCTION generate_tmarshruts() RETURNS VOID AS
-DO
+CREATE OR REPLACE FUNCTION generate_tmarshruts() RETURNS VOID AS
 $$
 DECLARE
     m1                   RECORD;
@@ -62,7 +61,7 @@ DECLARE
     s1                   RECORD;
     s2                   RECORD;
     tmarshrut_id_counter INTEGER := 1;
-    var_order_num            INTEGER;
+    var_order_num        INTEGER;
 BEGIN
     FOR m1 IN SELECT * FROM marshruts m WHERE m.order_num > 1
         LOOP
@@ -88,8 +87,6 @@ BEGIN
         END LOOP;
 END;
 $$ LANGUAGE plpgsql;
-
-SELECT * FROM tmarshruts LIMIT 10;
 
 CREATE OR REPLACE FUNCTION generate_timetable(n INTEGER DEFAULT 10) RETURNS VOID AS
 $$
