@@ -170,7 +170,7 @@ def generate_waitings(timetable, n=50):
             "waiting_id": len(waitings) + 1,
             "train_id": el["train_id"],
             "date": el["arrival_time"] + datetime.timedelta(minutes=wait),
-            "napr": faker.boolean(),
+            "napr": True,
             "value": wait
         })
     return waitings

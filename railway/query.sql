@@ -1,12 +1,13 @@
 -- SQL-запрос для формирования кумулятивного отчёта по датам
-WITH daily_data AS (SELECT t.departure_time::date         AS date,
+WITH daily_data AS (SELECT tt.departure_time::date        AS date,
                            COUNT(*)                       AS num_trips,
                            COUNT(DISTINCT t.passenger_id) AS num_passengers,
                            SUM(d.distance)                AS passenger_kilometers
-                    FROM tickets AS t
-                             LEFT JOIN distances AS d
-                                  ON (t.departure_station_id = d.station1_id AND t.arrival_station_id = d.station2_id)
-                    GROUP BY t.departure_time::date),
+                    FROM tickets t
+                             LEFT JOIN timetable tt ON tt.timetable_id = t.departure_timetable
+                             LEFT JOIN timetable tt2 ON tt2.timetable_id = t.arrival_timetable
+                             LEFT JOIN distances d ON (tt.station_id = d.station1_id AND tt2.station_id = d.station2_id)
+                    GROUP BY tt.departure_time::date),
      quarterly_data AS (SELECT date_trunc('quarter', daily_data.date)::date AS quarter,
                                SUM(num_trips)                               AS total_trips_quarter,
                                SUM(num_passengers)                          AS total_passengers_quarter,
@@ -38,64 +39,68 @@ SELECT TO_CHAR(TO_DATE(year::text, 'YYYY'), 'YYYY') AS date,
 FROM yearly_data
 ORDER BY date;
 
-SELECT * FROM tmarshruts LIMIT 10;
+SELECT *
+FROM tmarshruts
+LIMIT 10;
 
 -- PL\SQL-запрос для формирования кумулятивного отчёта по датам
 DO
 $$
-DECLARE
-    r RECORD;
-BEGIN
-    -- Создаем временные таблицы для хранения промежуточных результатов
-    CREATE TEMP TABLE daily_data ON COMMIT DROP AS
-    SELECT t.departure_time::date         AS date,
-           COUNT(*)                       AS num_trips,
-           COUNT(DISTINCT t.passenger_id) AS num_passengers,
-           SUM(d.distance)                AS passenger_kilometers
-    FROM tickets t
-             JOIN distances d ON t.departure_station_id = d.station1_id AND t.arrival_station_id = d.station2_id
-    GROUP BY date;
+    DECLARE
+        r RECORD;
+    BEGIN
+        -- Создаем временные таблицы для хранения промежуточных результатов
+        CREATE TEMP TABLE daily_data ON COMMIT DROP AS
+        SELECT tt.departure_time::date        AS date,
+               COUNT(*)                       AS num_trips,
+               COUNT(DISTINCT t.passenger_id) AS num_passengers,
+               SUM(d.distance)                AS passenger_kilometers
+        FROM tickets t
+                 LEFT JOIN timetable tt ON tt.timetable_id = t.departure_timetable
+                 LEFT JOIN timetable tt2 ON tt2.timetable_id = t.arrival_timetable
+                 LEFT JOIN distances d ON (tt.station_id = d.station1_id AND tt2.station_id = d.station2_id)
+        GROUP BY tt.departure_time::date;
 
-    CREATE TEMP TABLE quarterly_data ON COMMIT DROP AS
-    SELECT date_trunc('quarter', date)::date AS quarter,
-           SUM(num_trips)                    AS total_trips_quarter,
-           SUM(num_passengers)               AS total_passengers_quarter,
-           SUM(passenger_kilometers)         AS total_passenger_kilometers_quarter
-    FROM daily_data
-    GROUP BY quarter;
-
-    CREATE TEMP TABLE yearly_data ON COMMIT DROP AS
-    SELECT EXTRACT(YEAR FROM date)::integer AS year,
-           SUM(num_trips)                   AS total_trips_year,
-           SUM(num_passengers)              AS total_passengers_year,
-           SUM(passenger_kilometers)        AS total_passenger_kilometers_year
-    FROM daily_data
-    GROUP BY year;
-
-    -- Возвращаем результаты из временных таблиц
-    FOR r IN
-        SELECT TO_CHAR(date, 'YYYY-MM-DD') as date,
-               num_trips,
-               num_passengers,
-               passenger_kilometers
+        CREATE TEMP TABLE quarterly_data ON COMMIT DROP AS
+        SELECT date_trunc('quarter', date)::date AS quarter,
+               SUM(num_trips)                    AS total_trips_quarter,
+               SUM(num_passengers)               AS total_passengers_quarter,
+               SUM(passenger_kilometers)         AS total_passenger_kilometers_quarter
         FROM daily_data
-        UNION ALL
-        SELECT TO_CHAR(quarter, 'YYYY-MM') AS date,
-               total_trips_quarter,
-               total_passengers_quarter,
-               total_passenger_kilometers_quarter
-        FROM quarterly_data
-        UNION ALL
-        SELECT TO_CHAR(TO_DATE(year::text, 'YYYY'), 'YYYY') AS date,
-               total_trips_year,
-               total_passengers_year,
-               total_passenger_kilometers_year
-        FROM yearly_data
-        ORDER BY date
-        LOOP
-            RAISE NOTICE 'Date: %, num_trips: %, num_passengers: %, passenger_kilometers: %', r.date, r.num_trips, r.num_passengers, r.passenger_kilometers;
-        END LOOP;
-END
+        GROUP BY quarter;
+
+        CREATE TEMP TABLE yearly_data ON COMMIT DROP AS
+        SELECT EXTRACT(YEAR FROM date)::integer AS year,
+               SUM(num_trips)                   AS total_trips_year,
+               SUM(num_passengers)              AS total_passengers_year,
+               SUM(passenger_kilometers)        AS total_passenger_kilometers_year
+        FROM daily_data
+        GROUP BY year;
+
+        -- Возвращаем результаты из временных таблиц
+        FOR r IN
+            SELECT TO_CHAR(date, 'YYYY-MM-DD') as date,
+                   num_trips,
+                   num_passengers,
+                   passenger_kilometers
+            FROM daily_data
+            UNION ALL
+            SELECT TO_CHAR(quarter, 'YYYY-MM') AS date,
+                   total_trips_quarter,
+                   total_passengers_quarter,
+                   total_passenger_kilometers_quarter
+            FROM quarterly_data
+            UNION ALL
+            SELECT TO_CHAR(TO_DATE(year::text, 'YYYY'), 'YYYY') AS date,
+                   total_trips_year,
+                   total_passengers_year,
+                   total_passenger_kilometers_year
+            FROM yearly_data
+            ORDER BY date
+            LOOP
+                RAISE NOTICE 'Date: %, num_trips: %, num_passengers: %, passenger_kilometers: %', r.date, r.num_trips, r.num_passengers, r.passenger_kilometers;
+            END LOOP;
+    END
 $$ LANGUAGE plpgsql;
 
 -- Функция для корректировки времени прибытия поездов
@@ -128,6 +133,43 @@ EXCEPTION
         RAISE NOTICE 'Error: %', SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
+-- С использованием курсора
+CREATE OR REPLACE FUNCTION fix_delays(target_date TIMESTAMP)
+    RETURNS VOID AS
+$$
+DECLARE
+    train_cursor CURSOR FOR
+        SELECT tm.train_id, w.value AS delay_minutes, tm.arrival_time, tm.departure_time
+        FROM waitings w
+                 JOIN timetable tm ON tm.train_id = w.train_id
+        WHERE w.value > 0
+          AND w.date = target_date
+          AND tm.arrival_time = w.date - INTERVAL '1 minute' * w.value;
+    train_record RECORD;
+BEGIN
+    OPEN train_cursor;
+    LOOP
+        FETCH train_cursor INTO train_record;
+        EXIT WHEN NOT FOUND;
+
+        UPDATE timetable
+        SET arrival_time   = arrival_time + INTERVAL '1 minute' * train_record.delay_minutes,
+            departure_time = departure_time + INTERVAL '1 minute' * train_record.delay_minutes
+        WHERE train_id = train_record.train_id
+          AND arrival_time = train_record.arrival_time;
+
+        UPDATE waitings
+        SET value = 0
+        WHERE train_id = train_record.train_id
+          AND date = target_date;
+    END LOOP;
+    CLOSE train_cursor;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT fix_delays('2022-06-11 15:48:47.000000');
+SELECT * FROM waitings LIMIT 1;
+SELECT * FROM timetable t JOIN waitings w USING(train_id) WHERE t.train_id = 25 AND t.arrival_time = w.date - INTERVAL '1 minute' * w.value;
 
 -- Триггер для проверки соответствия поезда и станции маршрута
 CREATE OR REPLACE FUNCTION check_train_station_route()
