@@ -76,6 +76,7 @@ BEGIN
                             VALUES (tmarshrut_id_counter, s1.marshrut_id, s1.station_id, var_order_num);
                             var_order_num := var_order_num + 1;
                         END LOOP;
+                    var_order_num := var_order_num + 1;
                     FOR s2 IN SELECT * FROM marshruts m WHERE m.marshrut_id = m2.marshrut_id AND m.order_num >= m2.order_num
                         LOOP
                             INSERT INTO tmarshruts (tmarshrut_id, marshrut_id, station_id, order_num)
@@ -83,52 +84,6 @@ BEGIN
                             var_order_num := var_order_num + 1;
                         END LOOP;
                     tmarshrut_id_counter := tmarshrut_id_counter + 1;
-                END LOOP;
-        END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION generate_timetable(n INTEGER DEFAULT 10) RETURNS VOID AS
-$$
-DECLARE
-    train            RECORD;
-    marshrut         RECORD;
-    station_sequence RECORD;
-    station_count    INTEGER;
-    arrival_time     TIMESTAMP;
-    departure_time   TIMESTAMP;
-    i                INTEGER;
-BEGIN
-    FOR train IN SELECT * FROM trains
-        LOOP
-            FOR marshrut IN SELECT * FROM marshruts WHERE marshrut_id = train.marshrut_id ORDER BY order_num
-                LOOP
-                    station_count := (SELECT COUNT(*) FROM marshruts WHERE marshrut_id = train.marshrut_id);
-                    i := 1;
-                    FOR station_sequence IN SELECT *
-                                            FROM marshruts
-                                            WHERE marshrut_id = train.marshrut_id
-                                            ORDER BY order_num
-                        LOOP
-                            IF i = 1 THEN
-                                arrival_time := NOW(); -- Тут надо задать рандомное время прибытия
-                                departure_time := arrival_time + (RANDOM() * 60)::INTEGER *
-                                                                 INTERVAL '1 minute';
-                            ELSIF i = station_count THEN
-                                departure_time := arrival_time;
-                            ELSE
-                                arrival_time := departure_time + (RANDOM() * 60)::INTEGER *
-                                                                 INTERVAL '1 minute';
-                                departure_time := arrival_time + (RANDOM() * 60)::INTEGER *
-                                                                 INTERVAL '1 minute';
-                            END IF;
-
-                            INSERT INTO timetable (train_id, station_id, marshrut_id, arrival_time, departure_time, napr)
-                            VALUES (train.train_id, station_sequence.station_id, marshrut.marshrut_id, arrival_time,
-                                    departure_time, TRUE);
-
-                            i := i + 1;
-                        END LOOP;
                 END LOOP;
         END LOOP;
 END;

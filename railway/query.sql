@@ -38,6 +38,8 @@ SELECT TO_CHAR(TO_DATE(year::text, 'YYYY'), 'YYYY') AS date,
 FROM yearly_data
 ORDER BY date;
 
+SELECT * FROM tmarshruts LIMIT 10;
+
 -- PL\SQL-запрос для формирования кумулятивного отчёта по датам
 DO
 $$

@@ -119,7 +119,7 @@ def generate_timetable(trains, marshruts, n=10):
                 arrival_time = faker.date_time_between_dates(datetime_start="-2y", datetime_end="now")
                 departure_time = arrival_time + datetime.timedelta(minutes=random.randint(5, 60))
                 timetable.append({
-                    "id": id_counter,
+                    "timetable_id": id_counter,
                     "train_id": train["train_id"],
                     "station_id": station["station_id"],
                     "marshrut_id": marshrut['marshrut_id'],
@@ -180,29 +180,20 @@ def generate_passengers(n=10):
     return [{"passenger_id": i, "full_name": faker.unique.name()} for i in range(1, n + 1)]
 
 
-def generate_tickets(passengers, marshruts, trains, n=50):
+def generate_tickets(passengers, timetable, n=50):
     tickets = []
     for _ in range(n):
         passenger = random.choice(passengers)
-        train = random.choice(trains)
-        # Выбираем случайный маршрут из доступных для поезда
-        marshrut = next((m for m in marshruts if m['marshrut_id'] == train['marshrut_id']), None)
-        if not marshrut:
-            continue
-        station_sequence = [m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']]
-        if len(station_sequence) < 2:  # Нужно как минимум 2 станции для формирования билета
-            continue
-        departure_station = random.choice(station_sequence[:-1])  # Исключаем последнюю станцию для отправления
-        arrival_station = random.choice(station_sequence[station_sequence.index(
-            departure_station) + 1:])  # Выбираем станцию прибытия, следующую за станцией отправления
-        departure_time = faker.date_time_between_dates(datetime_start="-2y", datetime_end="now")
+        departure_timetable = random.choice(timetable)
+        arrival_timetable = random.choice(timetable)
+        while departure_timetable == arrival_timetable or departure_timetable["marshrut_id"] != arrival_timetable["marshrut_id"]:
+            arrival_timetable = random.choice(timetable)
+        purchase_date = faker.date_time_between_dates(datetime_start="-1y", datetime_end="now")
         tickets.append({
             "passenger_id": passenger["passenger_id"],
-            "train_id": train["train_id"],
-            "marshrut_id": marshrut['marshrut_id'],
-            "departure_station_id": departure_station['station_id'],
-            "arrival_station_id": arrival_station['station_id'],
-            "departure_time": departure_time
+            "departure_timetable": departure_timetable["timetable_id"],
+            "arrival_timetable": arrival_timetable["timetable_id"],
+            "purchase_date": purchase_date
         })
     return tickets
 
@@ -274,14 +265,14 @@ def main():
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    tickets = generate_tickets(passengers, marshruts, trains, 10000)
-    insert_data(conn, "tickets", tickets)
+    timetable = generate_timetable(trains, marshruts, 10)
+    insert_data(conn, "timetable", timetable)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    timetable = generate_timetable(trains, marshruts, 10)
-    insert_data(conn, "timetable", timetable)
+    tickets = generate_tickets(passengers, timetable, 10000)
+    insert_data(conn, "tickets", tickets)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
