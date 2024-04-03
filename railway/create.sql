@@ -51,22 +51,22 @@ CREATE TABLE IF NOT EXISTS trains (
 );
 
 CREATE TABLE IF NOT EXISTS timetable (
-    timetable_id INT PRIMARY KEY,
+    timetable_id INT,
     train_id INT REFERENCES trains(train_id) ON DELETE CASCADE , --Ид поезда
-    station_id INT,                                              --Ид станции
-    marshrut_id INT,                                             --Ид маршрута
+    station_id INT REFERENCES stations(station_id),              --Ид станции
     arrival_time TIMESTAMP,                                      --Время отправления
     departure_time TIMESTAMP,                                    --Время прибытия
 	napr BOOLEAN,                                                --Направление движения
-    FOREIGN KEY(marshrut_id, station_id) REFERENCES marshruts(marshrut_id, station_id)
+    PRIMARY KEY(timetable_id, train_id, station_id)
 );
 
 CREATE TABLE IF NOT EXISTS tickets (
     ticket_id SERIAL PRIMARY KEY,
-    passenger_id INT REFERENCES passengers(passenger_id),        -- ID пассажира
-    departure_timetable INT REFERENCES timetable(timetable_id),  -- ID отправки
-    arrival_timetable INT REFERENCES timetable(timetable_id),    -- ID приезда
-    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP            -- Дата покупки билета
+    passenger_id INT REFERENCES passengers(passenger_id),      -- ID пассажира
+    timetable_id INT,                                          -- ID timetable
+    departure_station_id INT REFERENCES stations(station_id),  -- ID отправки
+    arrival_station_id INT REFERENCES stations(station_id),    -- ID приезда
+    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP          -- Дата покупки билета
 );
 
 CREATE TABLE IF NOT EXISTS empl (

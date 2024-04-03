@@ -108,26 +108,25 @@ def generate_timetable(trains, marshruts, n=10):
     timetable = []
     id_counter = 1
     for train in trains:
-        marshrut = next((m for m in marshruts if m['marshrut_id'] == train['marshrut_id']), None)
-        if not marshrut:
-            continue
-        station_sequence = sorted([m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']],
-                                  key=lambda x: x['order_num'])
         for _ in range(n):
+            marshrut = next((m for m in marshruts if m['marshrut_id'] == train['marshrut_id']), None)
+            if not marshrut:
+                continue
+            station_sequence = sorted([m for m in marshruts if m['marshrut_id'] == marshrut['marshrut_id']],
+                                      key=lambda x: x['order_num'])
+            arrival_time = faker.date_time_between_dates(datetime_start="-1y", datetime_end="now")
             for i, station in enumerate(station_sequence):
-                # Для каждой станции устанавливаем время прибытия и отправления, кроме первой и последней
-                arrival_time = faker.date_time_between_dates(datetime_start="-2y", datetime_end="now")
                 departure_time = arrival_time + datetime.timedelta(minutes=random.randint(5, 60))
                 timetable.append({
                     "timetable_id": id_counter,
                     "train_id": train["train_id"],
                     "station_id": station["station_id"],
-                    "marshrut_id": marshrut['marshrut_id'],
                     "arrival_time": arrival_time if i > 0 else departure_time,
                     "departure_time": departure_time if i < len(station_sequence) - 1 else arrival_time,
                     "napr": True
                 })
-                id_counter += 1
+                arrival_time = departure_time + datetime.timedelta(minutes=random.randint(5, 60))
+            id_counter += 1
     return timetable
 
 
@@ -184,15 +183,22 @@ def generate_tickets(passengers, timetable, n=50):
     tickets = []
     for _ in range(n):
         passenger = random.choice(passengers)
-        departure_timetable = random.choice(timetable)
-        arrival_timetable = random.choice(timetable)
-        while departure_timetable == arrival_timetable or departure_timetable["marshrut_id"] != arrival_timetable["marshrut_id"]:
-            arrival_timetable = random.choice(timetable)
+        chosen_timetable_id = random.choice(timetable)["timetable_id"]
+        chosen_stations = [t for t in timetable if t["timetable_id"] == chosen_timetable_id]
+
+        if len(chosen_stations) < 2:
+            continue
+
+        departure_station = random.choice(chosen_stations[:-1])
+        arrival_station = random.choice(chosen_stations[1:])
+
         purchase_date = faker.date_time_between_dates(datetime_start="-1y", datetime_end="now")
         tickets.append({
+            "ticket_id": len(tickets) + 1,
             "passenger_id": passenger["passenger_id"],
-            "departure_timetable": departure_timetable["timetable_id"],
-            "arrival_timetable": arrival_timetable["timetable_id"],
+            "timetable_id": chosen_timetable_id,
+            "departure_station_id": departure_station["station_id"],
+            "arrival_station_id": arrival_station["station_id"],
             "purchase_date": purchase_date
         })
     return tickets
@@ -241,13 +247,13 @@ def main():
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    marshruts = generate_marshruts(stations, 500)
+    marshruts = generate_marshruts(stations, 200)
     insert_data(conn, "marshruts", marshruts)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    tmarshruts = generate_tmarshruts(random.choices(marshruts, k=100))
+    tmarshruts = generate_tmarshruts(random.choices(marshruts))
     insert_data(conn, "tmarshruts", tmarshruts)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
@@ -259,19 +265,19 @@ def main():
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    passengers = generate_passengers(100)
+    passengers = generate_passengers(1800)
     insert_data(conn, "passengers", passengers)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    timetable = generate_timetable(trains, marshruts, 10)
+    timetable = generate_timetable(trains, marshruts, 5)
     insert_data(conn, "timetable", timetable)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
 
     start_time = time.time()
-    tickets = generate_tickets(passengers, timetable, 10000)
+    tickets = generate_tickets(passengers, timetable, 100000)
     insert_data(conn, "tickets", tickets)
     insert_time = time.time()
     print(f"Time taken to generate and insert data: {insert_time - start_time} seconds")
