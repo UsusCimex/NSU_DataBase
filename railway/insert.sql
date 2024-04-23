@@ -91,7 +91,7 @@ $$ LANGUAGE plpgsql;
 
 SELECT generate_tmarshruts();
 SELECT * FROM tmarshruts LIMIT 10;
-DELETE FROM tmarshruts;
+TRUNCATE tmarshruts;
 
 CREATE OR REPLACE FUNCTION generate_empl(n INTEGER DEFAULT 20) RETURNS VOID AS
 $$

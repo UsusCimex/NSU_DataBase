@@ -1,4 +1,4 @@
--- SQL-запрос для формирования кумулятивного отчёта по датам
+-- SQL-запрос для формирования отчёта по датам
 WITH date_series AS (
     SELECT generate_series('2023-01-01'::DATE, CURRENT_DATE, '1 day'::INTERVAL)::DATE AS date
 ), trips_and_passengers AS (
@@ -53,7 +53,7 @@ ORDER BY
     date_part('year', tp.date),
     date_part('quarter', tp.date),
     tp.date;
-
+-- Для кумулятивности SUM(...) OVER (ORDER BY date PARTITION BY EXTRACT(QUARTER FROM date))
 DO
 $$
 DECLARE
@@ -128,6 +128,69 @@ BEGIN
     DROP TABLE IF EXISTS date_series, trips_and_passengers, final_results;
 END;
 $$ LANGUAGE plpgsql;
+-- другая реализация
+DO
+$$
+DECLARE
+    min_date DATE;
+    max_date DATE;
+
+    curr_date DATE;
+    curr_quarter INT;
+    curr_year INT;
+
+    num_tickets_d INT;
+    pass_km_d INT;
+
+    num_tickets_q INT;
+    pass_km_q INT;
+
+    num_tickets_y INT;
+    pass_km_y INT;
+BEGIN
+    SELECT MIN(arrival_time), MAX(arrival_time)
+    INTO min_date, max_date
+    FROM timetable;
+
+    curr_quarter := EXTRACT(QUARTER FROM min_date);
+    curr_year := EXTRACT(YEAR FROM min_date);
+
+    FOR curr_date IN SELECT DISTINCT arrival_time::DATE FROM timetable ORDER BY 1 LOOP
+        SELECT
+            COUNT(t.ticket_id) AS num_tickets_for_curr_day,
+            SUM(d.distance) AS pass_km
+        INTO num_tickets_d, pass_km_d
+        FROM tickets t
+        JOIN timetable tt ON t.timetable_id = tt.timetable_id
+        JOIN stations s1 ON t.departure_station_id = s1.station_id
+        JOIN stations s2 ON t.arrival_station_id = s2.station_id
+        JOIN distances d ON (s1.station_id = d.station1_id AND s2.station_id = d.station2_id)
+            OR (s1.station_id = d.station2_id AND s2.station_id = d.station1_id)
+        WHERE tt.arrival_time::DATE = curr_date;
+
+        RAISE NOTICE '%: % passengers, % km traveled', curr_date, num_tickets_d, pass_km_d;
+
+        num_tickets_q = num_tickets_q + num_tickets_d;
+        pass_km_q = pass_km_q + pass_km_d;
+        num_tickets_y = num_tickets_y + num_tickets_d;
+        pass_km_y = pass_km_y + pass_km_d;
+
+        IF curr_quarter != EXTRACT(QUARTER FROM curr_date) THEN
+            RAISE NOTICE 'End of Q% %: % passengers, % km traveled', curr_quarter, curr_year, num_tickets_q, pass_km_q;
+            num_tickets_q = 0;
+            pass_km_q = 0;
+            curr_quarter := EXTRACT(QUARTER FROM curr_date);
+        END IF;
+
+        IF curr_year != EXTRACT(YEAR FROM curr_date) THEN
+            RAISE NOTICE 'End of Year %: % passengers, % km traveled', curr_year, num_tickets_y, pass_km_y;
+            num_tickets_y = 0;
+            pass_km_y = 0;
+            curr_year := EXTRACT(YEAR FROM curr_date);
+        END IF;
+    END LOOP;
+END;
+$$ LANGUAGE PLPGSQL;
 
 -- Функция для корректировки времени прибытия поездов
 CREATE OR REPLACE FUNCTION fix_delays(target_date TIMESTAMP)
@@ -240,8 +303,8 @@ BEGIN
     WHERE station_id = NEW.station_id
       AND marshrut_id = (SELECT marshrut_id FROM trains WHERE train_id = NEW.train_id);
 
-    IF cur_station_order_num > 0 THEN
-        -- Получаем order_num предыдущей станции
+    IF cur_station_order_num > 1 THEN
+        -- Получаем station_id и order_num предыдущей станции
         SELECT tms.station_id, tms.order_num
         INTO prev_station_id, prev_station_order_num
         FROM tmarshruts tms
@@ -363,4 +426,4 @@ ORDER BY count DESC;
 
 DELETE FROM trains WHERE train_id = 562;
 SELECT * FROM train_deletions_audit LIMIT 10;
-DELETE FROM train_deletions_audit;
+TRUNCATE train_deletions_audit;
