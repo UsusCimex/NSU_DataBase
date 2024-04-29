@@ -1,16 +1,13 @@
 -- SQL-запрос для формирования отчёта по датам
-WITH date_series AS (
-    SELECT generate_series('2023-01-01'::DATE, CURRENT_DATE, '1 day'::INTERVAL)::DATE AS date
-), trips_and_passengers AS (
+WITH trips_and_passengers AS (
     SELECT
-        d.date,
-        COUNT(DISTINCT t.timetable_id) AS num_trips,
-        COUNT(DISTINCT ti.passenger_id) AS num_passengers
+        t.arrival_time::DATE AS date,
+        COUNT(DISTINCT ti.passenger_id) AS num_trips,
+        COUNT(ti.passenger_id) AS num_passengers
     FROM
-        date_series d
-        LEFT JOIN timetable t ON d.date BETWEEN t.departure_time::date AND t.arrival_time::date
-        LEFT JOIN tickets ti ON t.timetable_id = ti.timetable_id
-    GROUP BY d.date
+        timetable t
+        JOIN tickets ti ON t.timetable_id = ti.timetable_id
+    GROUP BY t.arrival_time::DATE
 ), betweens AS (
     SELECT tt.timetable_id,
          tt.station_id,
@@ -23,14 +20,14 @@ WITH date_series AS (
            tt.station_id,
            COUNT(t.passenger_id) AS count_p
     FROM tickets t
-         LEFT JOIN timetable tt ON t.timetable_id = tt.timetable_id
+         RIGHT JOIN timetable tt ON t.timetable_id = tt.timetable_id
     GROUP BY tt.timetable_id, tt.station_id
 ), distances_sum AS (
     SELECT b.arrival_time::DATE AS date,
            SUM(d.distance * cp.count_p) AS total_distance
     FROM betweens b
-        LEFT JOIN count_passengers cp ON b.station_id = cp.station_id AND b.timetable_id = cp.timetable_id
-        LEFT JOIN distances d ON d.station1_id = LEAST(b.station_id, b.next_station_id)
+        JOIN count_passengers cp ON b.station_id = cp.station_id AND b.timetable_id = cp.timetable_id
+        JOIN distances d ON d.station1_id = LEAST(b.station_id, b.next_station_id)
                                      AND d.station2_id = GREATEST(b.station_id, b.next_station_id)
     WHERE next_station_id IS NOT NULL
     GROUP BY b.arrival_time::DATE
@@ -47,33 +44,35 @@ SELECT
     COALESCE(SUM(ds.total_distance), 0) AS total_distance
 FROM
     trips_and_passengers tp
-    LEFT JOIN distances_sum ds ON tp.date = ds.date
+    JOIN distances_sum ds ON tp.date = ds.date
 GROUP BY ROLLUP(date_part('year', tp.date), date_part('quarter', tp.date), tp.date)
 ORDER BY
     date_part('year', tp.date),
     date_part('quarter', tp.date),
     tp.date;
--- Для кумулятивности SUM(...) OVER (ORDER BY date PARTITION BY EXTRACT(QUARTER FROM date))
+
+CREATE INDEX idx_timetable_arrival_time ON timetable USING btree(arrival_time);
+CREATE INDEX idx_timetable_id ON timetable(timetable_id);
+CREATE INDEX idx_tickets_timetable_id ON tickets(timetable_id);
+CREATE INDEX idx_stations_station_id ON stations(station_id);
+CREATE INDEX idx_distances_station_ids ON distances(station1_id, station2_id);
+
 DO
 $$
 DECLARE
-    rec RECORD;
+    record RECORD;
+    prev_quarter INT := 0;
+    prev_year INT := 0;
+
+    sum_trips_q INT := 0;
+    sum_passenger_q INT := 0;
+    sum_km_q INT := 0;
+
+    sum_trips_y INT := 0;
+    sum_passenger_y INT := 0;
+    sum_km_y INT := 0;
 BEGIN
-    CREATE TEMP TABLE date_series ON COMMIT DROP AS
-    SELECT generate_series('2023-01-01'::DATE, CURRENT_DATE, '1 day'::INTERVAL)::DATE AS date;
-
-    CREATE TEMP TABLE trips_and_passengers ON COMMIT DROP AS
-        SELECT
-            d.date,
-            COUNT(DISTINCT t.timetable_id) AS num_trips,
-            COUNT(DISTINCT ti.passenger_id) AS num_passengers
-        FROM
-            date_series d
-            LEFT JOIN timetable t ON d.date BETWEEN t.departure_time::date AND t.arrival_time::date
-            LEFT JOIN tickets ti ON t.timetable_id = ti.timetable_id
-        GROUP BY d.date;
-
-    CREATE TEMP TABLE betweens ON COMMIT DROP AS
+    CREATE TEMP TABLE bertweens ON COMMIT DROP AS
         SELECT tt.timetable_id,
              tt.station_id,
              LEAD(tt.station_id)
@@ -81,116 +80,61 @@ BEGIN
              tt.arrival_time
         FROM timetable tt;
 
-    CREATE TEMP TABLE count_passengers ON COMMIT DROP AS
-        SELECT tt.timetable_id,
-               tt.station_id,
-               COUNT(t.passenger_id) AS count_p
-        FROM tickets t
-             LEFT JOIN timetable tt ON t.timetable_id = tt.timetable_id
-        GROUP BY tt.timetable_id, tt.station_id;
-
-    CREATE TEMP TABLE distances_sum ON COMMIT DROP AS
-        SELECT b.arrival_time::DATE AS date,
-               SUM(d.distance * cp.count_p) AS total_distance
-        FROM betweens b
-            LEFT JOIN count_passengers cp ON b.station_id = cp.station_id AND b.timetable_id = cp.timetable_id
-            LEFT JOIN distances d ON d.station1_id = LEAST(b.station_id, b.next_station_id)
-                                         AND d.station2_id = GREATEST(b.station_id, b.next_station_id)
-        WHERE next_station_id IS NOT NULL
-        GROUP BY b.arrival_time::DATE;
-
-    CREATE TEMP TABLE final_results ON COMMIT DROP AS
-    SELECT
-        CASE
-            WHEN GROUPING(date_part('year', tp.date)) = 1 AND GROUPING(date_part('quarter', tp.date)) = 1 AND GROUPING(tp.date) = 1 THEN 'ИТОГ'
-            WHEN GROUPING(date_part('quarter', tp.date)) = 1 AND GROUPING(tp.date) = 1 THEN date_part('year', tp.date)::text || '(итог)'
-            WHEN GROUPING(tp.date) = 1 THEN 'Q' || date_part('quarter', tp.date)::text || ' ' || date_part('year', tp.date)::text
-            ELSE tp.date::text
-        END AS period,
-        COALESCE(SUM(tp.num_trips), 0) AS num_trips,
-        COALESCE(SUM(tp.num_passengers), 0) AS num_passengers,
-        COALESCE(SUM(ds.total_distance), 0) AS total_distance
-    FROM
-        trips_and_passengers tp
-        LEFT JOIN distances_sum ds ON tp.date = ds.date
-    GROUP BY ROLLUP(date_part('year', tp.date), date_part('quarter', tp.date), tp.date)
-    ORDER BY
-        date_part('year', tp.date),
-        date_part('quarter', tp.date),
-        tp.date;
-
-    FOR rec IN SELECT * FROM final_results
-    LOOP
-        RAISE NOTICE 'Period: %, Num Trips: %, Num Passengers: %, Total Distance: %',
-        rec.period, rec.num_trips, rec.num_passengers, rec.total_distance;
-    END LOOP;
-
-    DROP TABLE IF EXISTS date_series, trips_and_passengers, final_results;
-END;
-$$ LANGUAGE plpgsql;
--- другая реализация
-DO
-$$
-DECLARE
-    min_date DATE;
-    max_date DATE;
-
-    curr_date DATE;
-    curr_quarter INT;
-    curr_year INT;
-
-    num_tickets_d INT;
-    pass_km_d INT;
-
-    num_tickets_q INT;
-    pass_km_q INT;
-
-    num_tickets_y INT;
-    pass_km_y INT;
-BEGIN
-    SELECT MIN(arrival_time), MAX(arrival_time)
-    INTO min_date, max_date
-    FROM timetable;
-
-    curr_quarter := EXTRACT(QUARTER FROM min_date);
-    curr_year := EXTRACT(YEAR FROM min_date);
-
-    FOR curr_date IN SELECT DISTINCT arrival_time::DATE FROM timetable ORDER BY 1 LOOP
+    FOR record IN (
         SELECT
-            COUNT(t.ticket_id) AS num_tickets_for_curr_day,
+            tt.arrival_time::DATE as day,
+            EXTRACT(QUARTER FROM tt.arrival_time) AS quarter,
+            EXTRACT(YEAR FROM tt.arrival_time) AS year,
+            COUNT(t.passenger_id) AS num_passengers,
+            COUNT(DISTINCT t.passenger_id) AS num_trips,
             SUM(d.distance) AS pass_km
-        INTO num_tickets_d, pass_km_d
-        FROM tickets t
-        JOIN timetable tt ON t.timetable_id = tt.timetable_id
-        JOIN stations s1 ON t.departure_station_id = s1.station_id
-        JOIN stations s2 ON t.arrival_station_id = s2.station_id
-        JOIN distances d ON (s1.station_id = d.station1_id AND s2.station_id = d.station2_id)
-            OR (s1.station_id = d.station2_id AND s2.station_id = d.station1_id)
-        WHERE tt.arrival_time::DATE = curr_date;
-
-        RAISE NOTICE '%: % passengers, % km traveled', curr_date, num_tickets_d, pass_km_d;
-
-        num_tickets_q = num_tickets_q + num_tickets_d;
-        pass_km_q = pass_km_q + pass_km_d;
-        num_tickets_y = num_tickets_y + num_tickets_d;
-        pass_km_y = pass_km_y + pass_km_d;
-
-        IF curr_quarter != EXTRACT(QUARTER FROM curr_date) THEN
-            RAISE NOTICE 'End of Q% %: % passengers, % km traveled', curr_quarter, curr_year, num_tickets_q, pass_km_q;
-            num_tickets_q = 0;
-            pass_km_q = 0;
-            curr_quarter := EXTRACT(QUARTER FROM curr_date);
+        FROM timetable tt
+        JOIN tickets t ON t.timetable_id = tt.timetable_id
+        LEFT JOIN bertweens b ON b.timetable_id = tt.timetable_id AND b.arrival_time = tt.arrival_time
+        LEFT JOIN distances d ON d.station1_id = LEAST(b.station_id, b.next_station_id)
+                                     AND d.station2_id = GREATEST(b.station_id, b.next_station_id)
+        GROUP BY day, quarter, year
+        ORDER BY day
+    ) LOOP
+        IF prev_quarter <> 0 AND (prev_quarter <> record.quarter OR prev_year <> record.year) THEN
+            RAISE NOTICE 'End of Q% %: Num Trips: %, Num Passengers: %, Total Distance: %', prev_quarter, prev_year, sum_trips_q, sum_passenger_q, sum_km_q;
+            sum_passenger_q := 0;
+            sum_trips_q := 0;
+            sum_km_q := 0;
         END IF;
 
-        IF curr_year != EXTRACT(YEAR FROM curr_date) THEN
-            RAISE NOTICE 'End of Year %: % passengers, % km traveled', curr_year, num_tickets_y, pass_km_y;
-            num_tickets_y = 0;
-            pass_km_y = 0;
-            curr_year := EXTRACT(YEAR FROM curr_date);
+        IF prev_year <> 0 AND prev_year <> record.year THEN
+            RAISE NOTICE 'End of Year %: Num Trips: %, Num Passengers: %, Total Distance: %', prev_year, sum_trips_y, sum_passenger_y, sum_km_y;
+            sum_passenger_y := 0;
+            sum_trips_y := 0;
+            sum_km_y := 0;
         END IF;
+
+        RAISE NOTICE '%: Num Trips: %, Num Passengers: %, Total Distance: %', record.day, record.num_trips, record.num_passengers, record.pass_km;
+
+        sum_trips_q := sum_trips_q + record.num_trips;
+        sum_passenger_q := sum_passenger_q + record.num_passengers;
+        sum_km_q := sum_km_q + record.pass_km;
+
+        sum_trips_y := sum_trips_y + record.num_trips;
+        sum_passenger_y := sum_passenger_y + record.num_passengers;
+        sum_km_y := sum_km_y + record.pass_km;
+
+        prev_quarter := record.quarter;
+        prev_year := record.year;
     END LOOP;
+
+    -- Вывести последние суммы, если не были выведены из-за окончания цикла
+    IF sum_passenger_q <> 0 OR sum_km_q <> 0 THEN
+        RAISE NOTICE 'End of Q% %: Num Trips: %, Num Passengers: %, Total Distance: %', prev_quarter, prev_year, sum_trips_q, sum_passenger_q, sum_km_q;
+    END IF;
+    IF sum_passenger_y <> 0 OR sum_km_y <> 0 THEN
+        RAISE NOTICE 'End of Year %: Num Trips: %, Num Passengers: %, Total Distance: %', prev_year, sum_trips_y, sum_passenger_y, sum_km_y;
+    END IF;
 END;
 $$ LANGUAGE PLPGSQL;
+
+SELECT * FROM timetable WHERE arrival_time::DATE = '2023-04-04';
 
 -- Функция для корректировки времени прибытия поездов
 CREATE OR REPLACE FUNCTION fix_delays(target_date TIMESTAMP)
@@ -305,13 +249,12 @@ BEGIN
 
     IF cur_station_order_num > 1 THEN
         -- Получаем station_id и order_num предыдущей станции
-        SELECT tms.station_id, tms.order_num
-        INTO prev_station_id, prev_station_order_num
+        prev_station_order_num = cur_station_order_num - 1;
+        SELECT station_id
+        INTO prev_station_id
         FROM tmarshruts tms
         WHERE tms.marshrut_id = (SELECT marshrut_id FROM trains WHERE train_id = NEW.train_id)
-          AND tms.order_num < prev_station_order_num
-        ORDER BY tms.order_num DESC
-        LIMIT 1;
+          AND tms.order_num = prev_station_order_num;
 
         -- Ищем время отправления с предыдущей станции
         SELECT departure_time
@@ -322,16 +265,16 @@ BEGIN
         ORDER BY departure_time DESC
         LIMIT 1;
 
-        -- Пытаемся найти средний интервал между аналогичными станциями для других поездов
-        SELECT AVG(t2.arrival_time - t1.departure_time)
-        INTO interval_between_stations
-        FROM timetable t1
-                 JOIN timetable t2 ON t1.timetable_id = t2.timetable_id AND t1.station_id = prev_station_id AND
-                                      t2.station_id = NEW.station_id
-        WHERE t1.departure_time < t2.arrival_time;
-
         -- Корректируем время прибытия и отправления, если текущее время меньше времени предыдущего
         IF NEW.arrival_time <= prev_departure_time THEN
+            -- Пытаемся найти средний интервал между аналогичными станциями для других поездов
+            SELECT AVG(t2.arrival_time - t1.departure_time)
+            INTO interval_between_stations
+            FROM timetable t1
+                     JOIN timetable t2 ON t1.timetable_id = t2.timetable_id AND t1.station_id = prev_station_id AND
+                                          t2.station_id = NEW.station_id
+            WHERE t1.departure_time < t2.arrival_time;
+
             IF interval_between_stations IS NOT NULL THEN
                 NEW.arrival_time := prev_departure_time + interval_between_stations;
                 NEW.departure_time := NEW.arrival_time + interval_between_stations;
@@ -360,17 +303,20 @@ $$
 DECLARE
     next_marshrut_id INT;
 BEGIN
-    SELECT COALESCE(MAX(marshrut_id), 0) + 1
+    SELECT MIN(gs.marshrut_id) + 1
     INTO next_marshrut_id
-    FROM (SELECT marshrut_id
-          FROM marshruts
-          UNION
-          SELECT marshrut_id
-          FROM tmarshruts) AS un;
+    FROM generate_series(1, (SELECT MAX(marshrut_id) FROM marshruts)) AS gs(marshrut_id)
+    WHERE NOT EXISTS (SELECT 1 FROM marshruts WHERE marshrut_id = gs.marshrut_id)
+        AND NOT EXISTS (SELECT 1 FROM tmarshruts WHERE marshrut_id = gs.marshrut_id);
+
+    IF next_marshrut_id IS NULL THEN
+        next_marshrut_id := 1;
+    END IF;
 
     IF NEW.marshrut_id IS NULL THEN
         NEW.marshrut_id := next_marshrut_id;
     END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -388,6 +334,7 @@ CREATE TABLE IF NOT EXISTS train_deletions_audit
 (
     train_id        INT,
     deleted_tickets INT,
+    user_name       VARCHAR,
     deletion_time   TIMESTAMP DEFAULT NOW()
 );
 
@@ -397,15 +344,19 @@ CREATE OR REPLACE FUNCTION log_train_deletion()
 $$
 DECLARE
     tickets_sold INT;
+    user_name VARCHAR;
 BEGIN
     SELECT COUNT(1)
     INTO tickets_sold
     FROM tickets t LEFT JOIN timetable tt USING (timetable_id)
     WHERE tt.train_id = OLD.train_id;
 
+    SELECT current_user
+    INTO user_name;
+
     IF tickets_sold > 300 THEN
-        INSERT INTO train_deletions_audit (train_id, deleted_tickets)
-        VALUES (OLD.train_id, tickets_sold);
+        INSERT INTO train_deletions_audit (train_id, deleted_tickets, user_name)
+        VALUES (OLD.train_id, tickets_sold, user_name);
     END IF;
     RETURN OLD;
 END;
