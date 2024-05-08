@@ -303,20 +303,52 @@ $$
 DECLARE
     next_marshrut_id INT;
 BEGIN
-    SELECT MIN(gs.marshrut_id) + 1
-    INTO next_marshrut_id
-    FROM generate_series(1, (SELECT MAX(marshrut_id) FROM marshruts)) AS gs(marshrut_id)
-    WHERE NOT EXISTS (SELECT 1 FROM marshruts WHERE marshrut_id = gs.marshrut_id)
-        AND NOT EXISTS (SELECT 1 FROM tmarshruts WHERE marshrut_id = gs.marshrut_id);
-
-    IF next_marshrut_id IS NULL THEN
-        next_marshrut_id := 1;
-    END IF;
-
     IF NEW.marshrut_id IS NULL THEN
+        SELECT MIN(gs.marshrut_id)
+        INTO next_marshrut_id
+        FROM generate_series(1, (SELECT MAX(marshrut_id) FROM marshruts)) AS gs(marshrut_id)
+        WHERE NOT EXISTS (SELECT 1 FROM marshruts WHERE marshrut_id = gs.marshrut_id)
+            AND NOT EXISTS (SELECT 1 FROM tmarshruts WHERE marshrut_id = gs.marshrut_id);
+
+        IF next_marshrut_id IS NULL THEN
+            next_marshrut_id := 1;
+        END IF;
+
         NEW.marshrut_id := next_marshrut_id;
     END IF;
 
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+-- Другая реализация
+CREATE OR REPLACE FUNCTION auto_assign_marshrut_id()
+    RETURNS TRIGGER AS
+$$
+DECLARE
+    max_marshrut_id INT;
+    max_tmarshrut_id INT;
+BEGIN
+    IF NEW.marshrut_id IS NULL THEN
+        SELECT MAX(m.marshrut_id)
+        INTO max_marshrut_id
+        FROM marshruts m;
+        SELECT MAX(m.marshrut_id)
+        INTO max_tmarshrut_id
+        FROM tmarshruts m;
+
+        IF max_tmarshrut_id > max_marshrut_id THEN
+            max_marshrut_id := max_tmarshrut_id;
+        END IF;
+
+        FOR i IN 0..max_marshrut_id + 1 LOOP
+            IF i NOT IN (SELECT marshrut_id FROM marshruts UNION
+                         SELECT marshrut_id FROM tmarshruts)
+            THEN
+                NEW.marshrut_id = i;
+                RETURN NEW;
+            end if;
+        end loop;
+    END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
