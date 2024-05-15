@@ -306,7 +306,7 @@ BEGIN
     IF NEW.marshrut_id IS NULL THEN
         SELECT MIN(gs.marshrut_id)
         INTO next_marshrut_id
-        FROM generate_series(1, (SELECT MAX(marshrut_id) FROM marshruts)) AS gs(marshrut_id)
+        FROM generate_series(1, (SELECT MAX(marshrut_id) + 1 FROM marshruts)) AS gs(marshrut_id)
         WHERE NOT EXISTS (SELECT 1 FROM marshruts WHERE marshrut_id = gs.marshrut_id)
             AND NOT EXISTS (SELECT 1 FROM tmarshruts WHERE marshrut_id = gs.marshrut_id);
 
@@ -346,8 +346,8 @@ BEGIN
             THEN
                 NEW.marshrut_id = i;
                 RETURN NEW;
-            end if;
-        end loop;
+            END IF;
+        END LOOP;
     END IF;
     RETURN NEW;
 END;
